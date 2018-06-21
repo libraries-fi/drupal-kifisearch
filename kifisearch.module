@@ -1,0 +1,5 @@
+<?php
+
+function kifisearch_preprocess_search_result__kifisearch_node_search(&$variables) {
+  // var_dump($variables['info_split']);
+}

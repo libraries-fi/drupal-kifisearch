@@ -1,0 +1,29 @@
+<?php
+
+function kifisearch_schema() {
+  $schema['kifisearch_index'] = [
+    'description' => 'Keeps track of indexed entities',
+    'fields' => [
+      'entity_type' => [
+        'type' => 'varchar_ascii',
+        'length' => 32,
+        'not null' => TRUE
+      ],
+      'entity_id' => [
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'reindex' => [
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0
+      ]
+    ],
+    'primary key' => ['entity_id', 'entity_type']
+  ];
+
+  return $schema;
+}

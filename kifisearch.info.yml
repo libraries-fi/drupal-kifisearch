@@ -1,0 +1,7 @@
+name: Advanced Search
+type: module
+package: Kirjastot.fi
+description: "Better search built with Elasticsearch."
+core: 8.x
+configure: entity.search_page.collection
+dependencies: {}
