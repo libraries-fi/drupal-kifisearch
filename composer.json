@@ -1,0 +1,10 @@
+{
+  "name": "libraries-fi/kifisearch",
+  "description": "Better search built with Elasticsearch.",
+  "type": "drupal-module",
+  "license": "GPL-2.0+",
+  "require": {
+    "html2text/html2text": "^4.0",
+    "elasticsearch/elasticsearch": "^5.3"
+  }
+}
