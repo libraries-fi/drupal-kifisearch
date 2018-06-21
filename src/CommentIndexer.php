@@ -66,7 +66,7 @@ class CommentIndexer extends IndexerBase {
       ];
 
       if ($comment->hasField('comment_body')) {
-        $document['comment_body'] = (new Html2Text($comment->get('comment_body')->value))->getText();
+        $document['body'] = (new Html2Text($comment->get('comment_body')->value))->getText();
       }
 
       $this->index($document);

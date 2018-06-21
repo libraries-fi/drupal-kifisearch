@@ -103,28 +103,28 @@ class NodeIndexer extends IndexerBase {
 
         case 'procal_entry':
           if ($node->hasField('field_procal_starts')) {
-            $document['fields']['procal_starts'] = $node->get('field_procal_starts')->value;
-            $document['fields']['procal_ends'] = $node->get('field_procal_ends')->value;
+            $document['fields']['procal_entry']['starts'] = $node->get('field_procal_starts')->value;
+            $document['fields']['procal_entry']['ends'] = $node->get('field_procal_ends')->value;
           }
 
           if ($node->hasField('field_procal_expires')) {
-            $document['fields']['procal_expires'] = $node->get('field_procal_expires')->value;
+            $document['fields']['procal_entry']['expires'] = $node->get('field_procal_expires')->value;
           }
 
           if ($node->hasField('field_procal_city')) {
-            $document['fields']['procal_city'] = $node->get('field_procal_city')->value;
+            $document['fields']['procal_entry']['city'] = $node->get('field_procal_city')->value;
           }
 
           if ($node->hasField('field_procal_location')) {
-            $document['fields']['procal_location'] = $node->get('field_procal_location')->value;
+            $document['fields']['procal_entry']['location'] = $node->get('field_procal_location')->value;
           }
 
           if ($node->hasField('field_procal_organisation')) {
-            $document['fields']['procal_organisation'] = $node->get('field_procal_organisation')->value;
+            $document['fields']['procal_entry']['organisation'] = $node->get('field_procal_organisation')->value;
           }
 
           if ($node->hasField('field_procal_stream')) {
-            $document['fields']['procal_stream'] = $node->get('field_procal_stream')->value;
+            $document['fields']['procal_entry']['streamable'] = (bool)$node->get('field_procal_stream')->value;
           }
 
           if ($node->hasField('field_procal_groups')) {
