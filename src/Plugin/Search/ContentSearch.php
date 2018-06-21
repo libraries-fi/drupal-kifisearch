@@ -176,9 +176,6 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
     $node_status = $this->nodeIndexer->indexStatus();
     $comment_status = $this->commentIndexer->indexStatus();
 
-    // return $node_status;
-    // return $comment_status;
-
     return [
       'total' => $node_status['total'] + $comment_status['total'],
       'remaining' => $node_status['remaining'] + $comment_status['remaining'],
@@ -194,9 +191,6 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
         return $indexer->updateIndex();
       }
     }
-
-    // $this->nodeIndexer->updateIndex();
-    // $this->commentIndexer->updateIndex();
   }
 
   public function markForReindex() {
