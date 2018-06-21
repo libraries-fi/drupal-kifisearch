@@ -85,7 +85,6 @@ class ForumSearch extends SearchPluginBase {
 
   protected function findResults() {
     $query = $this->compileSearchQuery($this->keywords);
-
     $parameters = $this->getParameters();
     $skip = empty($parameters['page']) ? 0 : $parameters['page'] * 10;
 
@@ -117,7 +116,7 @@ class ForumSearch extends SearchPluginBase {
         'bundle' => self::NODE_TYPE
       ]];
     } else {
-      // Require (type=node AND bundle=forum) OR (type=comment AND bundle=comment_forum)
+      // Require either (type=node AND bundle=forum) OR (type=comment AND bundle=comment_forum)
       $query['bool']['must'][] = ['bool' => [
         'should' => [
           ['bool' => [
@@ -196,7 +195,7 @@ class ForumSearch extends SearchPluginBase {
       $search['filter'] = $filter;
     }
 
-    print json_encode($search);
+    // print json_encode($search);
 
     return $search;
   }
@@ -209,30 +208,50 @@ class ForumSearch extends SearchPluginBase {
     $time = $result['took'];
     $rows = $result['hits']['hits'];
 
-    $nids = array_map(function($row) { return $row['_source']['id']; }, $rows);
+    $nids = [];
+    $cids = [];
+
+    foreach ($rows as $row) {
+      if ($row['_source']['entity_type'] == 'node') {
+        $nids[] = $row['_source']['id'];
+      } elseif ($row['_source']['entity_type'] == 'comment') {
+        $cids[] = $row['_source']['id'];
+        $nids[] = $row['_source']['fields']['comment']['commented_entity_id'];
+      }
+    }
+
     $nodes = $this->entityManager->getStorage('node')->loadMultiple($nids);
+    $comments = $this->entityManager->getStorage('comment')->loadMultiple($cids);
     $prepared = [];
 
     pager_default_initialize($total, 10);
 
     foreach ($result['hits']['hits'] as $item) {
-      if (!isset($nodes[$item['_source']['id']])) {
+      $post_id = $item['_source']['id'];
+      if (!isset($nodes[$post_id]) && !isset($comments[$post_id])) {
         user_error(sprintf('Indexed node #%d does not exist', $item['_source']['id']));
         continue;
       }
 
       $data = $item['_source'];
-      $node = $nodes[$data['id']];
-      $area = $node->get('taxonomy_forums')->entity;
+
+      if ($data['entity_type'] == 'node') {
+        $thread = $nodes[$data['id']];
+      } else {
+        $thread = $nodes[$data['fields']['comment']['commented_entity_id']];
+      }
+
+      $area = $thread->get('taxonomy_forums')->entity;
+      $this->addCacheableDependency($thread);
 
       $build = [
-        'link' => $node->url('canonical', ['absolute' => TRUE, 'language' => $node->language()]),
-        'node' => $node,
-        'type' => $node->getType(),
-        'title' => $node->label(),
+        'link' => $thread->url('canonical', ['absolute' => TRUE, 'language' => $thread->language()]),
+        'node' => $thread,
+        'type' => $thread->bundle(),
+        'title' => $thread->label(),
         'score' => $item['_score'],
-        'date' => strtotime($item['_source']['created']),
-        'langcode' => $node->language()->getId(),
+        'date' => strtotime($data['created']),
+        'langcode' => $thread->language()->getId(),
 
         'extra' => [
           'bundle_label' => [
@@ -247,8 +266,6 @@ class ForumSearch extends SearchPluginBase {
       ];
 
       $prepared[] = $build;
-
-      $this->addCacheableDependency($node);
     }
 
     return $prepared;
