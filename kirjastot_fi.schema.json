@@ -1,0 +1,95 @@
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 5,
+      "number_of_replicas": 0,
+      "analysis": {
+        "analyzer": {
+          "whitespace_only": {
+            "tokenizer": "whitespace",
+            "filter": "lowercase"
+          },
+          "lowercase": {
+            "tokenizer": "keyword",
+            "filter": "lowercase"
+          }
+        }
+      }
+    }
+  },
+  "mappings" : {
+    "content": {
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "entity_type": {
+          "type": "keyword"
+        },
+        "bundle": {
+          "type": "keyword"
+        },
+        "langcode": {
+          "type": "keyword"
+        },
+        "title": {
+          "type": "text"
+        },
+        "body": {
+          "type": "text"
+        },
+        "terms": {
+          "type": "integer"
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "created": {
+          "type": "date"
+        },
+        "changed": {
+          "type": "date"
+        },
+        "fields": {
+          "properties": {
+            "comment": {
+              "properties": {
+                "commented_entity_type": {
+                  "type": "keyword"
+                },
+                "commented_entity_id": {
+                  "type": "integer"
+                },
+                "comment_field": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "procal_entry": {
+              "properties": {
+                "starts": {
+                  "type": "date"
+                },
+                "ends": {
+                  "type": "date"
+                },
+                "expires": {
+                  "type": "date"
+                },
+                "location": {
+                  "type": "text"
+                },
+                "organisation": {
+                  "type": "text"
+                },
+                "streamable": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
