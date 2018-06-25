@@ -12,6 +12,16 @@
           "lowercase": {
             "tokenizer": "keyword",
             "filter": "lowercase"
+          },
+          "finnish_text": {
+            "tokenizer": "standard",
+            "filter": ["standard", "lowercase", "finnish_stemmer"]
+          }
+        },
+        "filter": {
+          "finnish_stemmer": {
+            "type": "stemmer",
+            "name": "finnish"
           }
         }
       }
@@ -33,10 +43,12 @@
           "type": "keyword"
         },
         "title": {
-          "type": "text"
+          "type": "text",
+          "analyzer": "finnish_text"
         },
         "body": {
-          "type": "text"
+          "type": "text",
+          "analyzer": "finnish_text"
         },
         "terms": {
           "type": "integer"
