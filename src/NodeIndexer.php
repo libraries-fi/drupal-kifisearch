@@ -96,7 +96,7 @@ class NodeIndexer extends IndexerBase {
             }
 
             if ($node->hasField('field_evrecipe_implementor')) {
-              $document['fields']['evrecipe']['organizer'] = $node->get('field_evrecipe_implementor')->value;
+              $document['fields']['evrecipe']['organiser'] = $node->get('field_evrecipe_implementor')->value;
             }
 
             break;

@@ -104,6 +104,7 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
         return $this->prepareResults($results);
       }
     } catch (BadRequest400Exception $error) {
+      var_dump($error->getMessage());
       drupal_set_message(t('Query contained errors.'), 'error');
     } catch (NoNodesAvailableException $error) {
       drupal_set_message(t('Could not connect to database'), 'error');
@@ -171,30 +172,38 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
         continue;
       }
 
-      $data = $item['_source'];
-      $node = $nodes[$data['id']];
+      $entity = $cache[$entity_type][$entity_id];
 
       $build = [
-        'link' => $node->url('canonical', ['absolute' => TRUE, 'language' => $node->language()]),
-        'node' => $node,
-        'type' => $node->getType(),
-        'title' => $node->label(),
+        'link' => $entity->url('canonical', ['absolute' => TRUE, 'language' => $entity->language()]),
+        'entity' => $entity,
+        'type' => $entity->bundle(),
+        'title' => $entity->label(),
         'score' => $item['_score'],
         'date' => strtotime($item['_source']['created']),
-        'langcode' => $node->language()->getId(),
-
-        'extra' => [
-          'bundle_label' => [
-            '#plain_text' => $bundles[$node->getType()]->label(),
-          ]
-        ],
-
-        'snippet' => search_excerpt($this->keywords, implode(' ', [$data['body']]), $data['langcode']),
+        'langcode' => $entity->language()->getId(),
+        'extra' => [],
       ];
+
+      if (!empty($item['highlight'])) {
+        $matches = reset($item['highlight']);
+
+        foreach ($matches as $match) {
+          $build['snippet'][] = [
+            '#markup' => $match
+          ];
+        }
+      }
+
+      if (isset($bundles[$entity->bundle()])) {
+        $build['extra']['type_label'] = $bundles[$entity->bundle()]->label();
+      } else {
+        $build['extra']['type_label'] = $entity->getEntityType()->getLabel();
+      }
 
       $prepared[] = $build;
 
-      $this->addCacheableDependency($node);
+      $this->addCacheableDependency($entity);
     }
 
     return $prepared;
@@ -230,13 +239,6 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
   }
 
   protected function compileSearchQuery($query_string) {
-    /*
-     * Elasticsearch will throw an exception when the syntax is invalid, so we
-     * do a simple sanity check here.
-     */
-    // $query_string = preg_replace('/^(AND|OR|NOT)/', '', trim($query_string));
-    // $query_string = preg_replace('/(AND|OR|NOT)$/', '', trim($query_string));
-
     $langcode = $this->languageManager->getCurrentLanguage()->getId();
 
     $query = [
@@ -246,33 +248,22 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
       ]
     ];
 
-    // if ($query_string) {
-    //   $query['bool']['should'][] = [
-    //     'query_string' => [
-    //       'query' => $query_string,
-    //       'fields' => ['body'],
-    //       'default_operator' => 'AND',
-    //       'boost' => 10,
-    //     ]
-    //   ];
-    //
-    //   $query['bool']['must'][] = [
-    //     'query_string' => [
-    //       'query' => $query_string,
-    //       'fields' => ['title', 'body', 'tags', 'fields'],
-    //     ]
-    //   ];
-    // }
-
     $query['bool']['must'][] = [
-      'term' => [
-        'entity_type' => 'node'
-      ]
-    ];
+      'multi_match' => [
+        'query' => $query_string,
+        'fuzziness' => 15,
+        'fields' => [
+          'body',
+          'title',
+          'tags',
 
-    $query['bool']['must'][] = [
-      'match' => [
-        'body' => $query_string,
+          // Some custom fields to do searching from.
+          // Have to list them one-by-one because ES will fail with fields of wrong type.
+          'fields.evrecipe.organiser',
+          'fields.procal_entry.city',
+          'fields.procal_entry.location',
+          'fields.procal_entry.organisation',
+        ],
       ]
     ];
 
@@ -286,7 +277,11 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
 
     return [
       'query' => $query,
-      'highlight' => ['fields' => ['body' => (object)[], 'answer' => (object)[]]]
+      'highlight' => [
+        'fields' => ['body' => (object)[]],
+        'pre_tags' => ['<strong>'],
+        'post_tags' => ['</strong>'],
+      ]
     ];
   }
 
