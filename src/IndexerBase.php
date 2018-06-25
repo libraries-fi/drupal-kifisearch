@@ -3,13 +3,12 @@
 namespace Drupal\kifisearch;
 
 use Drupal\Core\Database\Connection;
-use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
-use Drupal\node\NodeInterface;
-use Drupal\kifisearch\Plugin\Search\NodeElasticSearch as ContentSearch;
+use Drupal\Core\Entity\FieldableEntityInterface;
+use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use ElasticSearch\Client;
-use Html2Text\Html2Text;
+use InvalidArgumentException;
 
 abstract class IndexerBase implements SearchIndexingInterface {
   protected $database;
@@ -53,9 +52,51 @@ abstract class IndexerBase implements SearchIndexingInterface {
       'body' => $document,
     ]);
 
-    $this->database->query('INSERT INTO {kifisearch_index} (entity_id, entity_type) VALUES (:id, :type)', [
+    $this->database->query('
+      INSERT IGNORE INTO {kifisearch_index} (entity_id, entity_type)
+      VALUES (:id, :type)', [
       'id' => $document['id'],
       'type' => $document['entity_type'],
     ]);
+  }
+
+  protected function extractTermsFromEntity(FieldableEntityInterface $entity, array $fields) {
+    $terms = [
+      // Numberic IDs
+      'terms' => [],
+
+      // Labels
+      'tags' => [],
+    ];
+
+    foreach ($fields as $key) {
+      if ($entity->hasField($key)) {
+        $extracted = $this->extractTerms($entity->get($key), $entity->language()->getId());
+        $terms['terms'] = array_merge($terms['terms'], $extracted['terms']);
+        $terms['tags'] = array_merge($terms['tags'], $extracted['tags']);
+      }
+    }
+
+    return $terms;
+  }
+
+  protected function extractTerms(FieldItemListInterface $fields, $langode) {
+    $terms = ['terms' => [], 'tags' => []];
+
+    foreach ($fields as $field) {
+      // FieldItemList is populated with an empty field with a null ID, so check that we have
+      // a valid entity.
+      if ($field->target_id) {
+        $terms['terms'][] = (int)$field->target_id;
+
+        try {
+          $terms['tags'][] = $field->entity->getTranslation($langcode)->label();
+        } catch (InvalidArgumentException $e) {
+          // pass
+        }
+      }
+    }
+
+    return $terms;
   }
 }

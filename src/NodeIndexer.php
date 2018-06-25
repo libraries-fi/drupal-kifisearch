@@ -46,98 +46,106 @@ class NodeIndexer extends IndexerBase {
 
   public function updateIndex() {
     foreach ($this->fetchItemsForIndexing() as $node) {
-      $langcode = $node->language()->getId();
+      foreach ($node->getTranslationLanguages() as $language) {
+        $langcode = $language->getId();
+        $node = $node->getTranslation($langcode);
 
-      $document = [
-        'entity_type' => 'node',
-        'id' => (int)$node->id(),
-        'bundle' => $node->bundle(),
-        'title' => $node->label(),
-        'langcode' => $langcode,
-        'created' => date('Y-m-d\TH:i:s', $node->getCreatedTime()),
-        'changed' => date('Y-m-d\TH:i:s', $node->getChangedTime()),
-      ];
+        $document = [
+          'entity_type' => 'node',
+          'id' => (int)$node->id(),
+          'bundle' => $node->bundle(),
+          'title' => $node->label(),
+          'langcode' => $langcode,
+          'created' => date('Y-m-d\TH:i:s', $node->getCreatedTime()),
+          'changed' => date('Y-m-d\TH:i:s', $node->getChangedTime()),
+        ];
 
-      if ($node->hasField('body')) {
-        $document['body'] = (new Html2Text($node->get('body')->value))->getText();
+        switch ($node->getType()) {
+          case 'forum':
+            $document += $this->extractTermsFromEntity($node, ['taxonomy_forums']);
+            break;
+
+          case 'page':
+            // Nothing to index.
+            break;
+
+          case 'announcement':
+            $document += $this->extractTermsFromEntity($node, ['field_groups']);
+            break;
+
+          case 'evrecipe':
+            /*
+             * NOTE: Fields category and target are not entity refs but string lists, so there is
+             * no actual term to index...
+             */
+
+            if ($node->hasField('field_evrecipe_category')) {
+              foreach ($node->get('field_evrecipe_category') as $field) {
+                $document['tags'][] = $field->value;
+              }
+            }
+
+            if ($node->hasField('field_evrecipe_target')) {
+              foreach ($node->get('field_evrecipe_target') as $field) {
+                $document['tags'][] = $field->value;
+              }
+            }
+
+            if ($node->hasField('field_evrecipe_description')) {
+              $document['body'] = (new Html2Text($node->get('field_evrecipe_description')->value))->getText();
+            }
+
+            if ($node->hasField('field_evrecipe_implementor')) {
+              $document['fields']['evrecipe']['organizer'] = $node->get('field_evrecipe_implementor')->value;
+            }
+
+            break;
+
+          case 'matbank_item':
+            $document += $this->extractTermsFromEntity($node, [
+              'field_category',
+              'field_tags'
+            ]);
+
+            break;
+
+          case 'procal_entry':
+            $document += $this->extractTermsFromEntity($node, ['field_groups']);
+
+            if ($node->hasField('field_procal_starts')) {
+              $document['fields']['procal_entry']['starts'] = $node->get('field_procal_starts')->value;
+              $document['fields']['procal_entry']['ends'] = $node->get('field_procal_ends')->value;
+            }
+
+            if ($node->hasField('field_procal_expires')) {
+              $document['fields']['procal_entry']['expires'] = $node->get('field_procal_expires')->value;
+            }
+
+            if ($node->hasField('field_procal_city')) {
+              $document['fields']['procal_entry']['city'] = $node->get('field_procal_city')->value;
+            }
+
+            if ($node->hasField('field_procal_location')) {
+              $document['fields']['procal_entry']['location'] = $node->get('field_procal_location')->value;
+            }
+
+            if ($node->hasField('field_procal_organisation')) {
+              $document['fields']['procal_entry']['organisation'] = $node->get('field_procal_organisation')->value;
+            }
+
+            if ($node->hasField('field_procal_stream')) {
+              $document['fields']['procal_entry']['streamable'] = (bool)$node->get('field_procal_stream')->value;
+            }
+
+            break;
+        }
+
+        if ($node->hasField('body')) {
+          $document['body'] = (new Html2Text($node->get('body')->value))->getText();
+        }
+
+        $this->index($document);
       }
-
-      switch ($node->getType()) {
-        case 'forum':
-          if ($node->hasField('taxonomy_forums')) {
-            $document['terms'][] = (int)$node->get('taxonomy_forums')->target_id;
-            $document['tags'][] = $node->get('taxonomy_forums')->entity->label();
-          }
-          break;
-
-        case 'page':
-          // Nothing to index.
-          break;
-
-        case 'announcement':
-          if ($node->hasField('field_groups')) {
-            foreach ($node->get('field_groups') as $item) {
-              $document['terms'][] = (int)$item->target_id;
-              $document['tags'][] = $item->entity->label();
-            }
-          }
-          break;
-
-        case 'evrecipe':
-        // FIXME: Define indexed content.
-          break;
-
-        case 'matbank_item':
-          if ($node->hasField('field_category')) {
-            $document['terms'][] = (int)$node->get('field_category')->target_id;
-            $document['tags'][] = $node->get('field_category')->entity->label();
-          }
-
-          if ($node->hasField('field_tags')) {
-            foreach ($node->get('field_tags') as $item) {
-              $document['terms'][] = (int)$item->target_id;
-              $document['tags'][] = $item->entity->label();
-            }
-          }
-          break;
-
-        case 'procal_entry':
-          if ($node->hasField('field_procal_starts')) {
-            $document['fields']['procal_entry']['starts'] = $node->get('field_procal_starts')->value;
-            $document['fields']['procal_entry']['ends'] = $node->get('field_procal_ends')->value;
-          }
-
-          if ($node->hasField('field_procal_expires')) {
-            $document['fields']['procal_entry']['expires'] = $node->get('field_procal_expires')->value;
-          }
-
-          if ($node->hasField('field_procal_city')) {
-            $document['fields']['procal_entry']['city'] = $node->get('field_procal_city')->value;
-          }
-
-          if ($node->hasField('field_procal_location')) {
-            $document['fields']['procal_entry']['location'] = $node->get('field_procal_location')->value;
-          }
-
-          if ($node->hasField('field_procal_organisation')) {
-            $document['fields']['procal_entry']['organisation'] = $node->get('field_procal_organisation')->value;
-          }
-
-          if ($node->hasField('field_procal_stream')) {
-            $document['fields']['procal_entry']['streamable'] = (bool)$node->get('field_procal_stream')->value;
-          }
-
-          if ($node->hasField('field_procal_groups')) {
-            foreach ($node->get('field_procal_groups') as $item) {
-              $document['terms'][] = (int)$item->target_id;
-              $document['tags'][] = $item->entity->label();
-            }
-          }
-        break;
-
-      }
-
-      $this->index($document);
     }
   }
 
@@ -162,8 +170,7 @@ class NodeIndexer extends IndexerBase {
     $nids = $query->execute()->fetchCol();
 
     if ($nids) {
-      $nodes = $this->storage->loadMultiple($nids);
-      return $nodes;
+      return $this->storage->loadMultiple($nids);
     } else {
       return [];
     }

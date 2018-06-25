@@ -56,6 +56,13 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
     'comment_forum',
   ];
 
+  protected $entityManager;
+  protected $languageManager;
+  protected $dates;
+  protected $database;
+  protected $searchSettings;
+  protected $client;
+
   static public function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     return new static(
       $configuration,
@@ -112,12 +119,28 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
 
     $result = $this->client->search([
       'index' => 'kirjastot_fi',
-      'type' => 'node',
+      'type' => 'content',
       'body' => $query,
       'from' => $skip,
     ]);
 
     return $result;
+  }
+
+  protected function loadMatchedEntities(array $result) {
+    $cacheable_entities = [];
+    $cache = [];
+
+    foreach ($result['hits']['hits'] as $entry) {
+      $entity_type = $entry['_source']['entity_type'];
+      $cacheable_entities[$entity_type][] = $entry['_source']['id'];
+    }
+
+    foreach ($cacheable_entities as $type => $ids) {
+      $cache[$type] = $this->entityManager->getStorage($type)->loadMultiple($ids);
+    }
+
+    return $cache;
   }
 
   /**
@@ -135,11 +158,16 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
     $bids = array_unique(array_map(function($item) { return $item['_source']['bundle']; }, $result['hits']['hits']));
     $bundles = $this->entityManager->getStorage('node_type')->loadMultiple($bids);
 
+    $cache = $this->loadMatchedEntities($result);
+
     pager_default_initialize($total, 10);
 
     foreach ($result['hits']['hits'] as $item) {
-      if (!isset($nodes[$item['_source']['id']])) {
-        user_error(sprintf('Indexed question #%d does not exist', $item['_source']['id']));
+      $entity_type = $item['_source']['entity_type'];
+      $entity_id = $item['_source']['id'];
+
+      if (!isset($cache[$entity_type][$entity_id])) {
+        user_error(sprintf('Stale search entry: %s #%d does not exist', $entity_type, $entity_id));
         continue;
       }
 
@@ -152,7 +180,7 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
         'type' => $node->getType(),
         'title' => $node->label(),
         'score' => $item['_score'],
-        'date' => $item['_source']['created'],
+        'date' => strtotime($item['_source']['created']),
         'langcode' => $node->language()->getId(),
 
         'extra' => [
@@ -198,7 +226,6 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
   }
 
   public function indexClear() {
-    // search_index_clear(self::SEARCH_ID);
     $this->database->query('DELETE FROM {kifisearch_index}');
   }
 
@@ -207,14 +234,10 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
      * Elasticsearch will throw an exception when the syntax is invalid, so we
      * do a simple sanity check here.
      */
-    $query_string = preg_replace('/^(AND|OR|NOT)/', '', trim($query_string));
-    $query_string = preg_replace('/(AND|OR|NOT)$/', '', trim($query_string));
+    // $query_string = preg_replace('/^(AND|OR|NOT)/', '', trim($query_string));
+    // $query_string = preg_replace('/(AND|OR|NOT)$/', '', trim($query_string));
 
-    if (empty($this->searchParameters['all_languages'])) {
-      $langcode = $this->languageManager->getCurrentLanguage()->getId();
-    } else {
-      $langcode = NULL;
-    }
+    $langcode = $this->languageManager->getCurrentLanguage()->getId();
 
     $query = [
       'bool' => [
@@ -223,23 +246,35 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
       ]
     ];
 
-    if ($query_string) {
-      $query['bool']['should'][] = [
-        'query_string' => [
-          'query' => $query_string,
-          'fields' => ['body'],
-          'default_operator' => 'AND',
-          'boost' => 10,
-        ]
-      ];
+    // if ($query_string) {
+    //   $query['bool']['should'][] = [
+    //     'query_string' => [
+    //       'query' => $query_string,
+    //       'fields' => ['body'],
+    //       'default_operator' => 'AND',
+    //       'boost' => 10,
+    //     ]
+    //   ];
+    //
+    //   $query['bool']['must'][] = [
+    //     'query_string' => [
+    //       'query' => $query_string,
+    //       'fields' => ['title', 'body', 'tags', 'fields'],
+    //     ]
+    //   ];
+    // }
 
-      $query['bool']['must'][] = [
-        'query_string' => [
-          'query' => $query_string,
-          'fields' => ['body', 'title', 'tags'],
-        ]
-      ];
-    }
+    $query['bool']['must'][] = [
+      'term' => [
+        'entity_type' => 'node'
+      ]
+    ];
+
+    $query['bool']['must'][] = [
+      'match' => [
+        'body' => $query_string,
+      ]
+    ];
 
     if ($langcode) {
       $query['bool']['must'][] = [

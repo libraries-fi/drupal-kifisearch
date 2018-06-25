@@ -31,7 +31,7 @@ use Drupal\Core\Url;
  *
  * @SearchPlugin(
  *   id = "kifisearch_forum_search",
- *   title = @Translation("Forum")
+ *   title = @Translation("Forum (Elasticsearch)")
  * )
  */
 class ForumSearch extends SearchPluginBase {
