@@ -65,7 +65,7 @@ class CommentIndexer extends IndexerBase {
       ];
 
       if ($comment->hasField('comment_body')) {
-        $document['body'] = $this->stripHtml($comment->get('comment_body'));
+        $document['body'] = $this->stripHtml($comment->get('comment_body')->value);
       }
 
       $this->index($document);
