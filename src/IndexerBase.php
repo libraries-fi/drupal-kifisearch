@@ -8,6 +8,7 @@ use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use ElasticSearch\Client;
+use Html2Text\Html2Text;
 use InvalidArgumentException;
 
 abstract class IndexerBase implements SearchIndexingInterface {
@@ -98,5 +99,13 @@ abstract class IndexerBase implements SearchIndexingInterface {
     }
 
     return $terms;
+  }
+
+  protected function stripHtml($html, array $options = null) {
+    if (is_null($options)) {
+      $options = ['do_links' => 'none'];
+    }
+
+    return (new Html2Text($html, $options))->getText();
   }
 }

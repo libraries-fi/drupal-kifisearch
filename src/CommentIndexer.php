@@ -9,7 +9,6 @@ use Drupal\comment\CommentInterface;
 use Drupal\kifisearch\Plugin\Search\ContentSearch;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use ElasticSearch\Client;
-use Html2Text\Html2Text;
 
 class CommentIndexer extends IndexerBase {
   public function getTotal() {
@@ -66,7 +65,7 @@ class CommentIndexer extends IndexerBase {
       ];
 
       if ($comment->hasField('comment_body')) {
-        $document['body'] = (new Html2Text($comment->get('comment_body')->value))->getText();
+        $document['body'] = $this->stripHtml($comment->get('comment_body'));
       }
 
       $this->index($document);

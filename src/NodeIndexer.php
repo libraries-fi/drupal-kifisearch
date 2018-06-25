@@ -9,7 +9,6 @@ use Drupal\node\NodeInterface;
 use Drupal\kifisearch\Plugin\Search\ContentSearch;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use ElasticSearch\Client;
-use Html2Text\Html2Text;
 
 class NodeIndexer extends IndexerBase {
   public function getTotal() {
@@ -92,7 +91,7 @@ class NodeIndexer extends IndexerBase {
             }
 
             if ($node->hasField('field_evrecipe_description')) {
-              $document['body'] = (new Html2Text($node->get('field_evrecipe_description')->value))->getText();
+              $document['body'] = $this->stripHtml($node->get('field_evrecipe_description')->value);
             }
 
             if ($node->hasField('field_evrecipe_implementor')) {
@@ -141,7 +140,7 @@ class NodeIndexer extends IndexerBase {
         }
 
         if ($node->hasField('body')) {
-          $document['body'] = (new Html2Text($node->get('body')->value))->getText();
+          $document['body'] = $this->stripHtml($node->get('body')->value);
         }
 
         $this->index($document);
