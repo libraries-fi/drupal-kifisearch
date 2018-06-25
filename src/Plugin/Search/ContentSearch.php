@@ -251,7 +251,7 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
     $query['bool']['must'][] = [
       'multi_match' => [
         'query' => $query_string,
-        'fuzziness' => 15,
+        // 'fuzziness' => 15,
         'fields' => [
           'body',
           'title',
