@@ -5,28 +5,20 @@ namespace Drupal\kifisearch\Plugin\Search;
 use DateTime;
 use InvalidArgumentException;
 use Drupal\Component\Utility\Tags;
-use Drupal\Core\Access\AccessibleInterface;
-use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Database\Connection;
-use Drupal\Core\DateTime\DateFormatterInterface;
-use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
-use Drupal\Core\Render\RendererInterface;
-use Drupal\Core\Session\AccountInterface;
-use Drupal\Core\State\StateInterface;
-use Drupal\node\NodeInterface;
+use Drupal\kifisearch\CommentIndexer;
+use Drupal\kifisearch\NodeIndexer;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use Drupal\search\Plugin\SearchPluginBase;
+use Elasticsearch\Client;
 use Elasticsearch\Common\Exceptions\BadRequest400Exception;
 use Elasticsearch\Common\Exceptions\NoNodesAvailableException;
 use Html2Text\Html2Text;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-
-use Drupal\kifisearch\CommentIndexer;
-use Drupal\kifisearch\NodeIndexer;
 
 /**
  * Search and indexing for asklib_question and asklib_answer entities.
@@ -58,7 +50,6 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
 
   protected $entityManager;
   protected $languageManager;
-  protected $dates;
   protected $database;
   protected $searchSettings;
   protected $client;
@@ -69,24 +60,21 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
       $plugin_id,
       $plugin_definition,
       $container->get('entity_type.manager'),
-      $container->get('entity_field.manager'),
       $container->get('language_manager'),
-      $container->get('date.formatter'),
       $container->get('database'),
-      $container->get('config.factory')->get('search.settings')
+      $container->get('config.factory')->get('search.settings'),
+      $container->get('kifisearch.client')
     );
   }
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, EntityFieldManagerInterface $field_manager, LanguageManagerInterface $languages, DateFormatterInterface $date_formatter, Connection $database, Config $search_settings) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Connection $database, Config $search_settings, Client $client) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
     $this->entityManager = $entity_manager;
     $this->languageManager = $languages;
-    $this->dates = $date_formatter;
     $this->database = $database;
     $this->searchSettings = $search_settings;
-
-    $this->client = \Elasticsearch\ClientBuilder::create()->build();
+    $this->client = $client;
 
     $batch_size = $this->searchSettings->get('index.cron_limit');
     $node_storage = $entity_manager->getStorage('node');

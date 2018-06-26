@@ -4,22 +4,12 @@ namespace Drupal\kifisearch\Plugin\Search;
 
 use DateTime;
 use InvalidArgumentException;
-use Drupal\Component\Utility\Tags;
-use Drupal\Core\Access\AccessibleInterface;
-use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Config\Config;
-use Drupal\Core\Database\Connection;
-use Drupal\Core\DateTime\DateFormatterInterface;
-use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
-use Drupal\Core\Render\RendererInterface;
-use Drupal\Core\Session\AccountInterface;
-use Drupal\Core\State\StateInterface;
-use Drupal\node\NodeInterface;
-use Drupal\search\Plugin\SearchIndexingInterface;
 use Drupal\search\Plugin\SearchPluginBase;
+use Elasticsearch\Client;
 use Elasticsearch\Common\Exceptions\BadRequest400Exception;
 use Elasticsearch\Common\Exceptions\NoNodesAvailableException;
 use Html2Text\Html2Text;
@@ -45,29 +35,17 @@ class ForumSearch extends SearchPluginBase {
       $plugin_id,
       $plugin_definition,
       $container->get('entity_type.manager'),
-      $container->get('entity_field.manager'),
       $container->get('language_manager'),
-      $container->get('date.formatter'),
-      $container->get('state'),
-      $container->get('database'),
-      $container->get('renderer'),
-      $container->get('config.factory')->get('search.settings')
+      $container->get('kifisearch.client')
     );
   }
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, EntityFieldManagerInterface $field_manager, LanguageManagerInterface $languages, DateFormatterInterface $date_formatter, StateInterface $state, Connection $database, RendererInterface $renderer, Config $search_settings) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Client $client) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
     $this->entityManager = $entity_manager;
-    $this->fieldManager = $field_manager;
     $this->languageManager = $languages;
-    $this->dates = $date_formatter;
-    $this->state = $state;
-    $this->database = $database;
-    $this->renderer = $renderer;
-    $this->searchSettings = $search_settings;
-
-    $this->client = \Elasticsearch\ClientBuilder::create()->build();
+    $this->client = $client;
   }
 
   public function execute() {
@@ -186,9 +164,11 @@ class ForumSearch extends SearchPluginBase {
 
     $search = [
       'query' => $query,
-      'highlight' => ['fields' => [
-        'body' => (object)[],
-      ]]
+      'highlight' => [
+        'fields' => ['body' => (object)[]],
+        'pre_tags' => ['<strong>'],
+        'post_tags' => ['</strong>'],
+      ]
     ];
 
     if (!empty($filter)) {
@@ -246,7 +226,7 @@ class ForumSearch extends SearchPluginBase {
 
       $build = [
         'link' => $thread->url('canonical', ['absolute' => TRUE, 'language' => $thread->language()]),
-        'node' => $thread,
+        'entity' => $thread,
         'type' => $thread->bundle(),
         'title' => $thread->label(),
         'score' => $item['_score'],
@@ -261,9 +241,17 @@ class ForumSearch extends SearchPluginBase {
             '#weight' => -100,
           ]
         ],
-
-        'snippet' => search_excerpt($this->keywords, implode(' ', [$data['body']]), $data['langcode']),
       ];
+
+      if (!empty($item['highlight'])) {
+        $matches = reset($item['highlight']);
+
+        foreach ($matches as $match) {
+          $build['snippet'][] = [
+            '#markup' => $match
+          ];
+        }
+      }
 
       $prepared[] = $build;
     }

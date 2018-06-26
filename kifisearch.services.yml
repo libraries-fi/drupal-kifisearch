@@ -1,0 +1,6 @@
+services:
+  kifisearch.client_factory:
+    class: 'Drupal\kifisearch\ClientFactory'
+  kifisearch.client:
+    class: 'ElasticSearch\Client'
+    factory: 'kifisearch.client_factory:create'
