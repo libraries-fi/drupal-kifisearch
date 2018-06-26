@@ -81,7 +81,7 @@ abstract class IndexerBase implements SearchIndexingInterface {
     return $terms;
   }
 
-  protected function extractTerms(FieldItemListInterface $fields, $langode) {
+  protected function extractTerms(FieldItemListInterface $fields, $langcode) {
     $terms = ['terms' => [], 'tags' => []];
 
     foreach ($fields as $field) {
@@ -89,6 +89,7 @@ abstract class IndexerBase implements SearchIndexingInterface {
       // a valid entity.
       if ($field->target_id) {
         $terms['terms'][] = (int)$field->target_id;
+        // $terms['tags'][] = $field->entity->getTranslation($langcode)->label();
 
         try {
           $terms['tags'][] = $field->entity->getTranslation($langcode)->label();
@@ -97,6 +98,9 @@ abstract class IndexerBase implements SearchIndexingInterface {
         }
       }
     }
+
+    $terms['terms'] = array_values(array_unique($terms['terms']));
+    $terms['tags'] = array_values(array_unique($terms['tags']));
 
     return $terms;
   }

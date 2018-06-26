@@ -25,7 +25,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *
  * @SearchPlugin(
  *   id = "kifisearch",
- *   title = @Translation("Content (Elasticsearch)")
+ *   title = @Translation("All content")
  * )
  */
 class ContentSearch extends SearchPluginBase implements SearchIndexingInterface {
@@ -140,8 +140,6 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
     $time = $result['took'];
     $rows = $result['hits']['hits'];
 
-    $nids = array_map(function($row) { return $row['_source']['id']; }, $rows);
-    $nodes = $this->entityManager->getStorage('node')->loadMultiple($nids);
     $prepared = [];
 
     $bids = array_unique(array_map(function($item) { return $item['_source']['bundle']; }, $result['hits']['hits']));

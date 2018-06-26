@@ -2,18 +2,8 @@
 
 namespace Drupal\kifisearch\Plugin\Search;
 
-use DateTime;
-use InvalidArgumentException;
-use Drupal\Core\Config\Config;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Language\LanguageManagerInterface;
-use Drupal\search\Plugin\SearchPluginBase;
-use Elasticsearch\Client;
-use Elasticsearch\Common\Exceptions\BadRequest400Exception;
-use Elasticsearch\Common\Exceptions\NoNodesAvailableException;
-use Html2Text\Html2Text;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Url;
 
 /**
@@ -21,81 +11,28 @@ use Drupal\Core\Url;
  *
  * @SearchPlugin(
  *   id = "kifisearch_forum_search",
- *   title = @Translation("Forum (Elasticsearch)")
+ *   title = @Translation("Forum")
  * )
  */
-class ForumSearch extends SearchPluginBase {
+class ForumSearch extends CustomSearchBase {
   const NODE_TYPE = 'forum';
   const COMMENT_TYPE = 'comment_forum';
   const VOCABULARY = 'forums';
 
-  static public function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
-    return new static(
-      $configuration,
-      $plugin_id,
-      $plugin_definition,
-      $container->get('entity_type.manager'),
-      $container->get('language_manager'),
-      $container->get('kifisearch.client')
-    );
-  }
-
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Client $client) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
-
-    $this->entityManager = $entity_manager;
-    $this->languageManager = $languages;
-    $this->client = $client;
-  }
-
-  public function execute() {
-    try {
-      if ($this->isSearchExecutable() && $results = $this->findResults()) {
-        return $this->prepareResults($results);
-      }
-    } catch (BadRequest400Exception $error) {
-      drupal_set_message(t('Query contained errors.'), 'error');
-    } catch (NoNodesAvailableException $error) {
-      drupal_set_message(t('Could not connect to database'), 'error');
-    }
-    return [];
-  }
-
-  protected function findResults() {
-    $query = $this->compileSearchQuery($this->keywords);
-    $parameters = $this->getParameters();
-    $skip = empty($parameters['page']) ? 0 : $parameters['page'] * 10;
-
-    $result = $this->client->search([
-      'index' => 'kirjastot_fi',
-      'type' => 'content',
-      'body' => $query,
-      'from' => $skip,
-    ]);
-
-    return $result;
-  }
-
   protected function compileSearchQuery($keywords) {
-    $query = [
-      'bool' => [
-        'must' => [
-          // conditions here
-        ],
-      ]
-    ];
+    $query = parent::compileSearchQuery($keywords);
 
     if ($this->getParameter('ot')) {
-      $query['bool']['must'][] = ['term' => [
+      $query['query']['bool']['filter'][] = ['term' => [
         'entity_type' => 'node',
       ]];
 
-      $query['bool']['must'][] = ['term' => [
+      $query['query']['bool']['filter'][] = ['term' => [
         'bundle' => self::NODE_TYPE
       ]];
     } else {
       // Require either (type=node AND bundle=forum) OR (type=comment AND bundle=comment_forum)
-      $query['bool']['must'][] = ['bool' => [
+      $query['query']['bool']['filter'][] = ['bool' => [
         'should' => [
           ['bool' => [
             'must' => [
@@ -115,39 +52,20 @@ class ForumSearch extends SearchPluginBase {
               ['term' => [
                 'bundle' => self::COMMENT_TYPE
               ]],
-              // Does not yet exist...
-              // ['term' => [
-              //   'fields.comment.commented_bundle' => self::NODE_TYPE
-              // ]]
             ]
           ]]
         ]
       ]];
     }
 
-    if (!empty(trim($keywords))) {
-      $keywords = mb_strtolower($keywords);
-      $keywords = preg_replace('/[^[:alnum:]_-]/u', ' ', $keywords);
-      $words = preg_split('/\s+/', $keywords);
-      $words = array_map(function($word) { return $word . '*'; }, $words);
-      $query_string = implode(' OR ', array_merge([$keywords], $words));
-
-      if ($query_string) {
-        $query['bool']['must'][] = ['query_string' => [
-          'fields' => $this->getParameter('ot') ? ['title'] : ['title', 'body'],
-          'query' => $query_string
-        ]];
-      }
-    }
-
     if ($areas = $this->getParameter('a')) {
-      $query['bool']['must'][] = ['terms' => [
+      $query['query']['bool']['filter'][] = ['terms' => [
         'terms' => explode('-', $areas)
       ]];
     }
 
     if ($from = $this->getParameter('df')) {
-      $query['bool']['must'][] = ['range' => [
+      $query['query']['bool']['filter'][] = ['range' => [
         'created' => [
           'gte' => $from
         ]
@@ -155,29 +73,14 @@ class ForumSearch extends SearchPluginBase {
     }
 
     if ($until = $this->getParameter('du')) {
-      $query['bool']['must'][] = ['range' => [
+      $query['query']['bool']['filter'][] = ['range' => [
         'created' => [
           'lte' => $until
         ]
       ]];
     }
 
-    $search = [
-      'query' => $query,
-      'highlight' => [
-        'fields' => ['body' => (object)[]],
-        'pre_tags' => ['<strong>'],
-        'post_tags' => ['</strong>'],
-      ]
-    ];
-
-    if (!empty($filter)) {
-      $search['filter'] = $filter;
-    }
-
-    // print json_encode($search);
-
-    return $search;
+    return $query;
   }
 
   /**
@@ -188,37 +91,37 @@ class ForumSearch extends SearchPluginBase {
     $time = $result['took'];
     $rows = $result['hits']['hits'];
 
-    $nids = [];
-    $cids = [];
+    $cache = $this->loadMatchedEntities($result) + ['node' => []];
+    $prepared = [];
 
-    foreach ($rows as $row) {
-      if ($row['_source']['entity_type'] == 'node') {
-        $nids[] = $row['_source']['id'];
-      } elseif ($row['_source']['entity_type'] == 'comment') {
-        $cids[] = $row['_source']['id'];
-        $nids[] = $row['_source']['fields']['comment']['commented_entity_id'];
+    $extra_nids = [];
+    foreach ($result['hits']['hits'] as $hit) {
+      if ($hit['_source']['entity_type'] == 'comment') {
+        $nid = $hit['_source']['fields']['comment']['commented_entity_id'];
+
+        if (!isset($cache['node'][$nid])) {
+          $extra_nids[] = $nid;
+        }
       }
     }
 
-    $nodes = $this->entityManager->getStorage('node')->loadMultiple($nids);
-    $comments = $this->entityManager->getStorage('comment')->loadMultiple($cids);
-    $prepared = [];
+    if ($extra_nids) {
+      $cache['node'] += $this->entityManager->getStorage('node')->loadMultiple($extra_nids);
+    }
 
-    pager_default_initialize($total, 10);
+    foreach ($result['hits']['hits'] as $hit) {
+      $post_id = $hit['_source']['id'];
+      $entity_type = $hit['_source']['entity_type'];
 
-    foreach ($result['hits']['hits'] as $item) {
-      $post_id = $item['_source']['id'];
-      if (!isset($nodes[$post_id]) && !isset($comments[$post_id])) {
-        user_error(sprintf('Indexed node #%d does not exist', $item['_source']['id']));
+      if (!isset($cache[$entity_type][$post_id])) {
+        user_error(sprintf('Indexed node #%d does not exist', $hit['_source']['id']));
         continue;
       }
 
-      $data = $item['_source'];
-
-      if ($data['entity_type'] == 'node') {
-        $thread = $nodes[$data['id']];
+      if ($entity_type == 'node') {
+        $thread = $cache['node'][$post_id];
       } else {
-        $thread = $nodes[$data['fields']['comment']['commented_entity_id']];
+        $thread = $cache['node'][$hit['_source']['fields']['comment']['commented_entity_id']];
       }
 
       $area = $thread->get('taxonomy_forums')->entity;
@@ -229,8 +132,8 @@ class ForumSearch extends SearchPluginBase {
         'entity' => $thread,
         'type' => $thread->bundle(),
         'title' => $thread->label(),
-        'score' => $item['_score'],
-        'date' => strtotime($data['created']),
+        'score' => $hit['_score'],
+        'date' => strtotime($hit['_source']['created']),
         'langcode' => $thread->language()->getId(),
 
         'extra' => [
@@ -243,14 +146,18 @@ class ForumSearch extends SearchPluginBase {
         ],
       ];
 
-      if (!empty($item['highlight'])) {
-        $matches = reset($item['highlight']);
+      if (!empty($hit['highlight'])) {
+        $matches = reset($hit['highlight']);
 
         foreach ($matches as $match) {
           $build['snippet'][] = [
             '#markup' => $match
           ];
         }
+      } else {
+        $build['snippet'][] = [
+          '#markup' => Unicode::truncate($hit['_source']['body'], 200, TRUE, TRUE)
+        ];
       }
 
       $prepared[] = $build;
@@ -259,59 +166,21 @@ class ForumSearch extends SearchPluginBase {
     return $prepared;
   }
 
-  public function isSearchExecutable() {
-    $params = array_filter($this->searchParameters);
-    unset($params['all_languages']);
-    return !empty($params);
-  }
-
   public function searchFormAlter(array &$form, FormStateInterface $form_state) {
-    $parameters = $this->getParameters() ?: [];
-    $langcode = $this->languageManager->getCurrentLanguage()->getId();
+    $form = parent::searchFormAlter($form, $form_state);
 
-    $form['only_titles'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Search thread titles only'),
-      '#default_value' => $this->getParameter('ot'),
+    $form['only_titles'][0]['#title'] = $this->t('Search thread titles only');
+
+    $form['areas'] = [
+      '#type' => 'container',
+      [
+        '#type' => 'checkboxes',
+        '#title' => $this->t('Forum areas'),
+        '#options' => $this->getAreaOptions(),
+        '#default_value' => explode('-', $this->getParameter('a', '')),
+        '#parents' => ['areas']
+      ]
     ];
-
-    $form['area_options'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Limit search to areas'),
-      '#open' => !empty($this->getParameter('a')),
-    ];
-
-    $form['area_options']['areas'] = [
-      '#type' => 'checkboxes',
-      '#title' => $this->t('Forum areas'),
-      '#options' => $this->getAreaOptions(),
-      '#default_value' => explode('-', $this->getParameter('a', '')),
-    ];
-
-    $form['date_range'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Filter by date'),
-      '#open' => (bool)array_filter([$this->getParameter('df'), $this->getParameter('du')]),
-      '#attributes' => [
-        'class' => ['form-inline']
-      ],
-    ];
-
-    $form['date_range']['from'] = [
-      '#type' => 'date',
-      '#title' => $this->t('Date from'),
-      '#default_value' => $this->getParameter('df'),
-    ];
-
-    $form['date_range']['until'] = [
-      '#type' => 'date',
-      '#title' => $this->t('Date until'),
-      '#default_value' => $this->getParameter('du'),
-    ];
-  }
-
-  protected function getParameter($name, $default = null) {
-    return isset($this->searchParameters[$name]) ? $this->searchParameters[$name] : $default;
   }
 
   protected function getAreaOptions() {
@@ -334,22 +203,10 @@ class ForumSearch extends SearchPluginBase {
   public function buildSearchUrlQuery(FormStateInterface $form_state) {
     $query = parent::buildSearchUrlQuery($form_state);
 
-    if ($form_state->getValue('only_titles')) {
-      $query['ot'] = 1;
-    }
-
     if ($areas = $form_state->getValue('areas')) {
       if ($areas = array_filter($areas)) {
         $query['a'] = implode('-', $areas);
       }
-    }
-
-    if ($from = $form_state->getValue('from')) {
-      $query['df'] = $from;
-    }
-
-    if ($until = $form_state->getValue('until')) {
-      $query['du'] = $until;
     }
 
     return $query;
