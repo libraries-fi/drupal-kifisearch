@@ -39,9 +39,9 @@ abstract class CustomSearchBase extends SearchPluginBase {
 
   public function execute() {
     try {
-      if ($this->isSearchExecutable() && $results = $this->findResults()) {
+      if ($this->isSearchExecutable() && $result = $this->findResults()) {
         pager_default_initialize($result['hits']['total'], self::PAGE_SIZE);
-        return $this->prepareResults($results);
+        return $this->prepareResults($result);
       }
     } catch (BadRequest400Exception $error) {
       var_dump($error);

@@ -117,32 +117,15 @@ class CalendarSearch extends CustomSearchBase {
       '#open' => !empty($this->getParameter('g')),
     ];
 
-    $form['group_options']['groups'] = [
-      '#type' => 'checkboxes',
-      '#title' => $this->t('Categories'),
-      '#options' => $this->getAreaOptions(),
-      '#default_value' => explode('-', $this->getParameter('g', '')),
-    ];
-
-    $form['date_range'] = [
-      '#type' => 'fieldset',
-      '#title' => $this->t('Filter by date'),
-      '#open' => (bool)array_filter([$this->getParameter('df'), $this->getParameter('du')]),
-      '#attributes' => [
-        'class' => ['form-inline']
-      ],
-    ];
-
-    $form['date_range']['from'] = [
-      '#type' => 'date',
-      '#title' => $this->t('Date from'),
-      '#default_value' => $this->getParameter('df'),
-    ];
-
-    $form['date_range']['until'] = [
-      '#type' => 'date',
-      '#title' => $this->t('Date until'),
-      '#default_value' => $this->getParameter('du'),
+    $form['groups'] = [
+      '#type' => 'container',
+      [
+        '#type' => 'checkboxes',
+        '#title' => $this->t('Categories'),
+        '#options' => $this->getAreaOptions(),
+        '#default_value' => explode('-', $this->getParameter('g', '')),
+        '#parents' => ['groups'],
+      ]
     ];
   }
 
