@@ -44,7 +44,6 @@ abstract class CustomSearchBase extends SearchPluginBase {
         return $this->prepareResults($result);
       }
     } catch (BadRequest400Exception $error) {
-      var_dump($error);
       drupal_set_message(t('Query contained errors.'), 'error');
     } catch (NoNodesAvailableException $error) {
       drupal_set_message(t('Could not connect to database'), 'error');
@@ -202,7 +201,7 @@ abstract class CustomSearchBase extends SearchPluginBase {
     $parameters = $this->getParameters();
     $skip = $this->getParameter('page', 0) * self::PAGE_SIZE;
 
-    print json_encode($query);
+    // print json_encode($query);
 
     $result = $this->client->search([
       'index' => 'kirjastot_fi',

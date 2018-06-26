@@ -149,11 +149,9 @@ class ForumSearch extends CustomSearchBase {
       if (!empty($hit['highlight'])) {
         $matches = reset($hit['highlight']);
 
-        foreach ($matches as $match) {
-          $build['snippet'][] = [
-            '#markup' => $match
-          ];
-        }
+        $build['snippet'][] = [
+          '#markup' => implode(' ... ', $matches)
+        ];
       } else {
         $build['snippet'][] = [
           '#markup' => Unicode::truncate($hit['_source']['body'], 200, TRUE, TRUE)

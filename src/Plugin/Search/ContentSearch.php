@@ -5,6 +5,7 @@ namespace Drupal\kifisearch\Plugin\Search;
 use DateTime;
 use InvalidArgumentException;
 use Drupal\Component\Utility\Tags;
+use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -142,16 +143,16 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
 
     $prepared = [];
 
-    $bids = array_unique(array_map(function($item) { return $item['_source']['bundle']; }, $result['hits']['hits']));
+    $bids = array_unique(array_map(function($hit) { return $hit['_source']['bundle']; }, $result['hits']['hits']));
     $bundles = $this->entityManager->getStorage('node_type')->loadMultiple($bids);
 
     $cache = $this->loadMatchedEntities($result);
 
     pager_default_initialize($total, 10);
 
-    foreach ($result['hits']['hits'] as $item) {
-      $entity_type = $item['_source']['entity_type'];
-      $entity_id = $item['_source']['id'];
+    foreach ($result['hits']['hits'] as $hit) {
+      $entity_type = $hit['_source']['entity_type'];
+      $entity_id = $hit['_source']['id'];
 
       if (!isset($cache[$entity_type][$entity_id])) {
         user_error(sprintf('Stale search entry: %s #%d does not exist', $entity_type, $entity_id));
@@ -165,20 +166,22 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
         'entity' => $entity,
         'type' => $entity->bundle(),
         'title' => $entity->label(),
-        'score' => $item['_score'],
-        'date' => strtotime($item['_source']['created']),
+        'score' => $hit['_score'],
+        'date' => strtotime($hit['_source']['created']),
         'langcode' => $entity->language()->getId(),
         'extra' => [],
       ];
 
-      if (!empty($item['highlight'])) {
-        $matches = reset($item['highlight']);
+      if (!empty($hit['highlight'])) {
+        $matches = reset($hit['highlight']);
 
-        foreach ($matches as $match) {
-          $build['snippet'][] = [
-            '#markup' => $match
-          ];
-        }
+        $build['snippet'][] = [
+          '#markup' => implode(' ... ', $matches)
+        ];
+      } else {
+        $build['snippet'][] = [
+          '#markup' => Unicode::truncate($hit['_source']['body'], 200, TRUE, TRUE)
+        ];
       }
 
       if (isset($bundles[$entity->bundle()])) {
