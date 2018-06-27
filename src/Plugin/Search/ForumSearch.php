@@ -19,19 +19,19 @@ class ForumSearch extends CustomSearchBase {
   const VOCABULARY = 'forums';
 
   protected function compileSearchQuery($keywords) {
-    $query = parent::compileSearchQuery($keywords);
+    $search = parent::compileSearchQuery($keywords);
 
     if ($this->getParameter('ot')) {
-      $query['query']['bool']['filter'][] = ['term' => [
+      $search['query']['bool']['filter'][] = ['term' => [
         'entity_type' => 'node',
       ]];
 
-      $query['query']['bool']['filter'][] = ['term' => [
+      $search['query']['bool']['filter'][] = ['term' => [
         'bundle' => self::NODE_TYPE
       ]];
     } else {
       // Require either (type=node AND bundle=forum) OR (type=comment AND bundle=comment_forum)
-      $query['query']['bool']['filter'][] = ['bool' => [
+      $search['query']['bool']['filter'][] = ['bool' => [
         'should' => [
           ['bool' => [
             'must' => [
@@ -58,28 +58,12 @@ class ForumSearch extends CustomSearchBase {
     }
 
     if ($areas = $this->getParameter('a')) {
-      $query['query']['bool']['filter'][] = ['terms' => [
+      $search['query']['bool']['filter'][] = ['terms' => [
         'terms' => explode('-', $areas)
       ]];
     }
 
-    if ($from = $this->getParameter('df')) {
-      $query['query']['bool']['filter'][] = ['range' => [
-        'created' => [
-          'gte' => $from
-        ]
-      ]];
-    }
-
-    if ($until = $this->getParameter('du')) {
-      $query['query']['bool']['filter'][] = ['range' => [
-        'created' => [
-          'lte' => $until
-        ]
-      ]];
-    }
-
-    return $query;
+    return $search;
   }
 
   /**

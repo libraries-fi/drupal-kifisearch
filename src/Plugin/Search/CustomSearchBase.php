@@ -221,6 +221,22 @@ abstract class CustomSearchBase extends SearchPluginBase {
       ]];
     }
 
+    if ($from = $this->getParameter('df')) {
+      $search['query']['bool']['filter'][] = ['range' => [
+        'created' => [
+          'gte' => $from
+        ]
+      ]];
+    }
+
+    if ($until = $this->getParameter('du')) {
+      $search['query']['bool']['filter'][] = ['range' => [
+        'created' => [
+          'lte' => $until
+        ]
+      ]];
+    }
+
     return $search;
   }
 
