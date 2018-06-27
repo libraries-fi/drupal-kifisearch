@@ -144,6 +144,8 @@ class ForumSearch extends CustomSearchBase {
 
     $form['areas'] = [
       '#type' => 'container',
+      '#group' => 'advanced',
+      
       [
         '#type' => 'checkboxes',
         '#title' => $this->t('Forum areas'),
