@@ -97,14 +97,10 @@ class CalendarSearch extends CustomSearchBase {
     $parameters = $this->getParameters() ?: [];
     $langcode = $this->languageManager->getCurrentLanguage()->getId();
 
-    $form['group_options'] = [
-      '#type' => 'container',
-      '#title' => $this->t('Limit search to areas'),
-      '#open' => !empty($this->getParameter('g')),
-    ];
-
     $form['groups'] = [
       '#type' => 'container',
+      '#group' => 'advanced',
+      
       [
         '#type' => 'checkboxes',
         '#title' => $this->t('Categories'),

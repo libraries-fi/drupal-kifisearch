@@ -1,5 +1,35 @@
 <?php
 
-function kifisearch_preprocess_search_result__kifisearch_node_search(&$variables) {
-  // var_dump($variables['info_split']);
+use Drupal\Core\Form\FormStateInterface;
+
+function kifisearch_form_search_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
+  // AIn order to provide theme suggestions, we need to add the search page ID to theme.
+  // var_dump($form);
+  if ($form_id == 'search_form') {
+    $form['#theme'] = ['search_form__' . $form_state->get('search_page_id')];
+
+    // Also set the search page ID somewhere so that we can identify forms in other hooks.
+    $form['#search_id'] = $form_state->get('search_page_id');
+  }
+  // $form['#theme'] = ['lolwut'];
+
+}
+
+function kifisearch_theme_suggestions_form_alter(array &$suggestions, array $variables) {
+  // Provide theme suggestions as the core module does not do this by itself.
+
+  $form_id = $variables['element']['#form_id'] ?? null;
+
+  if ($form_id == 'search_form') {
+    $theme = reset($variables['element']['#theme']);
+    $parts = explode('__', $theme);
+
+    foreach ($parts as $i => $part) {
+      $suggestions[] = implode('__', array_slice($parts, 0, $i + 1));
+    }
+  }
+}
+
+function kifisearch_form_search_form__calendar_alter() {
+  var_dump('alter calendar form');
 }

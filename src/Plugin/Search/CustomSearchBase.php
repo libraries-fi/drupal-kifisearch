@@ -38,6 +38,14 @@ abstract class CustomSearchBase extends SearchPluginBase {
     $this->client = $client;
   }
 
+  public function suggestedTitle() {
+    if (!empty($this->keywords)) {
+      return $this->t('Search for \'@keywords\'', ['@keywords' => Unicode::truncate($this->keywords, 60, TRUE, TRUE)]);
+    } else {
+      return $this->t('Search');
+    }
+  }
+
   public function execute() {
     try {
       if ($this->isSearchExecutable() && $result = $this->findResults()) {
@@ -59,12 +67,21 @@ abstract class CustomSearchBase extends SearchPluginBase {
   }
 
   public function searchFormAlter(array &$form, FormStateInterface $form_state) {
-    $parameters = $this->getParameters() ?: [];
     $langcode = $this->languageManager->getCurrentLanguage()->getId();
+    $parameters = $this->getParameters() ?: [];
+
+    $has_extra = !empty(array_diff(array_keys(array_filter($parameters)), ['keys']));
+
+    $form['advanced'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Advanced search'),
+      '#open' => $has_extra,
+    ];
 
     // Using this structure allows easy re-parenting of fields in subclasses!
     $form['only_titles'] = [
       '#type' => 'container',
+      '#group' => 'advanced',
 
       [
         '#type' => 'checkbox',
@@ -76,6 +93,7 @@ abstract class CustomSearchBase extends SearchPluginBase {
 
     $form['all_languages'] = [
       '#type' => 'container',
+      '#group' => 'advanced',
 
       [
         '#type' => 'checkbox',
@@ -87,17 +105,31 @@ abstract class CustomSearchBase extends SearchPluginBase {
 
     $form['date_range'] = [
       '#type' => 'container',
+      '#group' => 'advanced',
+    ];
 
-      'from' => [
+    $form['date_from'] = [
+      '#type' => 'container',
+      '#group' => 'date_range',
+
+      [
         '#type' => 'date',
         '#title' => $this->t('Date from'),
         '#default_value' => $this->getParameter('df'),
-      ],
-      'until' => [
+        '#parents' => ['date_from'],
+      ]
+    ];
+
+    $form['date_until'] = [
+      '#type' => 'container',
+      '#group' => 'date_range',
+
+      [
         '#type' => 'date',
         '#title' => $this->t('Date until'),
         '#default_value' => $this->getParameter('du'),
-      ],
+        '#parents' => ['date_until'],
+      ]
     ];
 
     return $form;
@@ -114,11 +146,11 @@ abstract class CustomSearchBase extends SearchPluginBase {
       $query['anylang'] = '1';
     }
 
-    if ($from = $form_state->getValue('from')) {
+    if ($from = $form_state->getValue('date_from')) {
       $query['df'] = $from;
     }
 
-    if ($until = $form_state->getValue('until')) {
+    if ($until = $form_state->getValue('date_until')) {
       $query['du'] = $until;
     }
 
