@@ -140,12 +140,23 @@ class ForumSearch extends CustomSearchBase {
   public function searchFormAlter(array &$form, FormStateInterface $form_state) {
     $form = parent::searchFormAlter($form, $form_state);
 
+    $form['header'] = [
+      '#type' => 'container',
+      '#weight' => -10,
+
+      'back_link' => [
+        '#type' => 'link',
+        '#url' => new Url('forum.index'),
+        '#title' => $this->t('Forum index'),
+      ]
+    ];
+
     $form['only_titles'][0]['#title'] = $this->t('Search thread titles only');
 
     $form['areas'] = [
       '#type' => 'container',
       '#group' => 'advanced',
-      
+
       [
         '#type' => 'checkboxes',
         '#title' => $this->t('Forum areas'),

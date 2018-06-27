@@ -3,6 +3,7 @@
 namespace Drupal\kifisearch\Plugin\Search;
 
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Url;
 
 /**
  * Search and indexing for asklib_question and asklib_answer entities.
@@ -90,17 +91,23 @@ class CalendarSearch extends CustomSearchBase {
 
   public function searchFormAlter(array &$form, FormStateInterface $form_state) {
     $form = parent::searchFormAlter($form, $form_state);
-
     $form['all_languages']['#access'] = FALSE;
 
-    $form_state->addBuildInfo('form_id', 'search_form_calendar');
-    $parameters = $this->getParameters() ?: [];
-    $langcode = $this->languageManager->getCurrentLanguage()->getId();
+    $form['header'] = [
+      '#type' => 'container',
+      '#weight' => -10,
+
+      'back_link' => [
+        '#type' => 'link',
+        '#url' => new Url('view.ammattikalenteri.page_1'),
+        '#title' => $this->t('Pro calendar front page'),
+      ]
+    ];
 
     $form['groups'] = [
       '#type' => 'container',
       '#group' => 'advanced',
-      
+
       [
         '#type' => 'checkboxes',
         '#title' => $this->t('Categories'),
