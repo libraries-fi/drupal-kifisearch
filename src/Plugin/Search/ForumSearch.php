@@ -2,7 +2,6 @@
 
 namespace Drupal\kifisearch\Plugin\Search;
 
-use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
 
@@ -144,19 +143,9 @@ class ForumSearch extends CustomSearchBase {
             '#weight' => -100,
           ]
         ],
+
+        'snippet' => $this->processSnippet($hit)
       ];
-
-      if (!empty($hit['highlight'])) {
-        $matches = reset($hit['highlight']);
-
-        $build['snippet'][] = [
-          '#markup' => implode(' ... ', $matches)
-        ];
-      } else {
-        $build['snippet'][] = [
-          '#markup' => Unicode::truncate($hit['_source']['body'], 200, TRUE, TRUE)
-        ];
-      }
 
       $prepared[] = $build;
     }

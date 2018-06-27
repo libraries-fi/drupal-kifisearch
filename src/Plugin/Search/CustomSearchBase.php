@@ -2,6 +2,7 @@
 
 namespace Drupal\kifisearch\Plugin\Search;
 
+use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
@@ -194,6 +195,21 @@ abstract class CustomSearchBase extends SearchPluginBase {
 
   protected function getParameter($name, $default = null) {
     return isset($this->searchParameters[$name]) ? $this->searchParameters[$name] : $default;
+  }
+
+  protected function processSnippet(array $hit) {
+    if (!empty($hit['highlight'])) {
+      $matches = reset($hit['highlight']);
+
+      $snippet = [
+        '#markup' => implode(' ... ', $matches)
+      ];
+    } else {
+      $snippet = [
+        '#markup' => Unicode::truncate($hit['_source']['body'], 200, TRUE, TRUE)
+      ];
+    }
+    return $snippet;
   }
 
   protected function findResults() {

@@ -29,7 +29,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   title = @Translation("All content")
  * )
  */
-class ContentSearch extends SearchPluginBase implements SearchIndexingInterface {
+class ContentSearch extends CustomSearchBase implements SearchIndexingInterface {
   // Should match the ID defined in the @SearchPlugin annotation.
   const SEARCH_ID = 'kifisearch';
 
@@ -49,11 +49,8 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
     'comment_forum',
   ];
 
-  protected $entityManager;
-  protected $languageManager;
   protected $database;
   protected $searchSettings;
-  protected $client;
 
   static public function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     return new static(
@@ -62,20 +59,17 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
       $plugin_definition,
       $container->get('entity_type.manager'),
       $container->get('language_manager'),
+      $container->get('kifisearch.client'),
       $container->get('database'),
-      $container->get('config.factory')->get('search.settings'),
-      $container->get('kifisearch.client')
+      $container->get('config.factory')->get('search.settings')
     );
   }
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Connection $database, Config $search_settings, Client $client) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Client $client, Connection $database, Config $search_settings) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_manager, $languages, $client);
 
-    $this->entityManager = $entity_manager;
-    $this->languageManager = $languages;
     $this->database = $database;
     $this->searchSettings = $search_settings;
-    $this->client = $client;
 
     $batch_size = $this->searchSettings->get('index.cron_limit');
     $node_storage = $entity_manager->getStorage('node');
@@ -85,52 +79,6 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
     $comment_storage = $entity_manager->getStorage('comment');
 
     $this->commentIndexer = new CommentIndexer($database, $comment_storage, $this->client, self::ALLOWED_COMMENT_TYPES, $batch_size);
-  }
-
-  public function execute() {
-    try {
-      if ($this->isSearchExecutable() && $results = $this->findResults()) {
-        return $this->prepareResults($results);
-      }
-    } catch (BadRequest400Exception $error) {
-      var_dump($error->getMessage());
-      drupal_set_message(t('Query contained errors.'), 'error');
-    } catch (NoNodesAvailableException $error) {
-      drupal_set_message(t('Could not connect to database'), 'error');
-    }
-    return [];
-  }
-
-  protected function findResults() {
-    $query = $this->compileSearchQuery($this->keywords);
-
-    $parameters = $this->getParameters();
-    $skip = empty($parameters['page']) ? 0 : $parameters['page'] * 10;
-
-    $result = $this->client->search([
-      'index' => 'kirjastot_fi',
-      'type' => 'content',
-      'body' => $query,
-      'from' => $skip,
-    ]);
-
-    return $result;
-  }
-
-  protected function loadMatchedEntities(array $result) {
-    $cacheable_entities = [];
-    $cache = [];
-
-    foreach ($result['hits']['hits'] as $entry) {
-      $entity_type = $entry['_source']['entity_type'];
-      $cacheable_entities[$entity_type][] = $entry['_source']['id'];
-    }
-
-    foreach ($cacheable_entities as $type => $ids) {
-      $cache[$type] = $this->entityManager->getStorage($type)->loadMultiple($ids);
-    }
-
-    return $cache;
   }
 
   /**
@@ -147,8 +95,6 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
     $bundles = $this->entityManager->getStorage('node_type')->loadMultiple($bids);
 
     $cache = $this->loadMatchedEntities($result);
-
-    pager_default_initialize($total, 10);
 
     foreach ($result['hits']['hits'] as $hit) {
       $entity_type = $hit['_source']['entity_type'];
@@ -170,19 +116,8 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
         'date' => strtotime($hit['_source']['created']),
         'langcode' => $entity->language()->getId(),
         'extra' => [],
+        'snippet' => $this->processSnippet($hit),
       ];
-
-      if (!empty($hit['highlight'])) {
-        $matches = reset($hit['highlight']);
-
-        $build['snippet'][] = [
-          '#markup' => implode(' ... ', $matches)
-        ];
-      } else {
-        $build['snippet'][] = [
-          '#markup' => Unicode::truncate($hit['_source']['body'], 200, TRUE, TRUE)
-        ];
-      }
 
       if (isset($bundles[$entity->bundle()])) {
         $build['extra']['type_label'] = $bundles[$entity->bundle()]->label();
@@ -225,98 +160,5 @@ class ContentSearch extends SearchPluginBase implements SearchIndexingInterface 
 
   public function indexClear() {
     $this->database->query('DELETE FROM {kifisearch_index}');
-  }
-
-  protected function compileSearchQuery($query_string) {
-    $langcode = $this->languageManager->getCurrentLanguage()->getId();
-
-    $query = [
-      'bool' => [
-        // 'must' => [],
-        // 'should' => [],
-      ]
-    ];
-
-    $query['bool']['must'][] = [
-      'multi_match' => [
-        'query' => $query_string,
-        // 'fuzziness' => 15,
-        'fields' => [
-          'body',
-          'title',
-          'tags',
-
-          // Some custom fields to do searching from.
-          // Have to list them one-by-one because ES will fail with fields of wrong type.
-          'fields.evrecipe.organiser',
-          'fields.procal_entry.city',
-          'fields.procal_entry.location',
-          'fields.procal_entry.organisation',
-        ],
-      ]
-    ];
-
-    if ($langcode) {
-      $query['bool']['must'][] = [
-        'term' => ['langcode' => [
-          'value' => $langcode,
-        ]],
-      ];
-    }
-
-    return [
-      'query' => $query,
-      'highlight' => [
-        'fields' => ['body' => (object)[]],
-        'pre_tags' => ['<strong>'],
-        'post_tags' => ['</strong>'],
-      ]
-    ];
-  }
-
-  public function isSearchExecutable() {
-    $params = array_filter($this->searchParameters);
-    unset($params['all_languages']);
-    return !empty($params);
-  }
-
-  public function searchFormAlter(array &$form, FormStateInterface $form_state) {
-    $parameters = $this->getParameters() ?: [];
-    $langcode = $this->languageManager->getCurrentLanguage()->getId();
-
-    if (isset($parameters['tags']) && $tags = $parameters['tags']) {
-      $tags = $this->entityManager->getStorage('taxonomy_term')->loadMultiple(Tags::explode($tags));
-    } else {
-      $tags = [];
-    }
-
-    $form['advanced'] = [
-      '#type' => 'details',
-      '#title' => t('Advanced search'),
-      '#open' => count(array_diff(array_keys($parameters), ['page', 'keys'])) > 1,
-      'all_languages' => [
-        '#type' => 'checkbox',
-        '#title' => $this->t('Search all languages'),
-        '#default_value' => !empty($parameters['all_languages'])
-      ],
-    ];
-
-    $form['advanced']['action'] = [
-      '#type' => 'container',
-      'submit' => [
-        '#type' => 'submit',
-        '#value' => $this->t('Advanced search'),
-      ]
-    ];
-  }
-
-  public function buildSearchUrlQuery(FormStateInterface $form_state) {
-    $query = parent::buildSearchUrlQuery($form_state);
-
-    if ($form_state->getValue('all_languages')) {
-      $query['all_languages'] = '1';
-    }
-
-    return $query;
   }
 }

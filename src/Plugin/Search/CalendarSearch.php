@@ -2,7 +2,6 @@
 
 namespace Drupal\kifisearch\Plugin\Search;
 
-use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Form\FormStateInterface;
 
 /**
@@ -70,6 +69,7 @@ class CalendarSearch extends CustomSearchBase {
         'date' => strtotime($hit['_source']['created']),
         'langcode' => $entity->language()->getId(),
         'extra' => [],
+        'snippet' => $this->processSnippet($hit),
       ];
 
       if (!empty($hit['_source']['tags'])) {
@@ -78,18 +78,6 @@ class CalendarSearch extends CustomSearchBase {
 
         $build['extra']['groups'] = [
           '#plain_text' => implode(', ', $tags)
-        ];
-      }
-
-      if (!empty($hit['highlight'])) {
-        $matches = reset($hit['highlight']);
-
-        $build['snippet'][] = [
-          '#markup' => implode(' ... ', $matches)
-        ];
-      } else {
-        $build['snippet'][] = [
-          '#markup' => Unicode::truncate($hit['_source']['body'], 200, TRUE, TRUE)
         ];
       }
 
