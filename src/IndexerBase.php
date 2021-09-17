@@ -54,8 +54,9 @@ abstract class IndexerBase implements SearchIndexingInterface {
     ]);
 
     $this->database->query('
-      INSERT IGNORE INTO {kifisearch_index} (entity_id, entity_type)
-      VALUES (:id, :type)', [
+      INSERT INTO {kifisearch_index} (entity_id, entity_type)
+      VALUES (:id, :type)
+      ON DUPLICATE KEY UPDATE reindex=0', [
       'id' => $document['id'],
       'type' => $document['entity_type'],
     ]);
