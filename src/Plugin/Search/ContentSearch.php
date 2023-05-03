@@ -11,7 +11,6 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
-use Drupal\kifisearch\CommentIndexer;
 use Drupal\kifisearch\NodeIndexer;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use Drupal\search\Plugin\SearchPluginBase;
@@ -37,16 +36,9 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
     'announcement',
     'buildings',
     'evrecipe',
-    'forum',
     'matbank_item',
     'page',
     'procal_entry',
-  ];
-
-  const ALLOWED_COMMENT_TYPES = [
-    // 'comment',
-    // 'comment_asklib',
-    'comment_forum',
   ];
 
   protected $database;
@@ -75,10 +67,6 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
     $node_storage = $entity_manager->getStorage('node');
 
     $this->nodeIndexer = new NodeIndexer($database, $node_storage, $this->client, self::ALLOWED_NODE_TYPES, $batch_size);
-
-    $comment_storage = $entity_manager->getStorage('comment');
-
-    $this->commentIndexer = new CommentIndexer($database, $comment_storage, $this->client, self::ALLOWED_COMMENT_TYPES, $batch_size);
   }
 
   /**
@@ -135,16 +123,15 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
 
   public function indexStatus() {
     $node_status = $this->nodeIndexer->indexStatus();
-    $comment_status = $this->commentIndexer->indexStatus();
 
     return [
-      'total' => $node_status['total'] + $comment_status['total'],
-      'remaining' => $node_status['remaining'] + $comment_status['remaining'],
+      'total' => $node_status['total'],
+      'remaining' => $node_status['remaining'],
     ];
   }
 
   public function updateIndex() {
-    $indexers = [$this->nodeIndexer, $this->commentIndexer];
+    $indexers = [$this->nodeIndexer];
 
     // Execute (only) the first indexer that has something to do.
     foreach ($indexers as $indexer) {
