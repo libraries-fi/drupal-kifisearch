@@ -14,9 +14,9 @@ use Drupal\Core\Url;
  * )
  */
 class ForumSearch extends CustomSearchBase {
-  const NODE_TYPE = 'forum';
-  const COMMENT_TYPE = 'comment_forum';
-  const VOCABULARY = 'forums';
+  public const NODE_TYPE = 'forum';
+  public const COMMENT_TYPE = 'comment_forum';
+  public const VOCABULARY = 'forums';
 
   protected function compileSearchQuery($keywords) {
     $search = parent::compileSearchQuery($keywords);

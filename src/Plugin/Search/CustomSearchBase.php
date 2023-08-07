@@ -17,7 +17,7 @@ abstract class CustomSearchBase extends SearchPluginBase {
   protected $languageManager;
   protected $client;
 
-  const PAGE_SIZE = 10;
+  public const PAGE_SIZE = 10;
 
   static public function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     return new static(
@@ -53,9 +53,9 @@ abstract class CustomSearchBase extends SearchPluginBase {
         return $this->prepareResults($result);
       }
     } catch (BadRequest400Exception $error) {
-      drupal_set_message(t('Query contained errors.'), 'error');
+      $this->messenger()->addError(t('Query contained errors.'));
     } catch (NoNodesAvailableException $error) {
-      drupal_set_message(t('Could not connect to database'), 'error');
+      $this->messenger()->addError(t('Could not connect to database'));
     }
     return [];
   }
@@ -158,6 +158,7 @@ abstract class CustomSearchBase extends SearchPluginBase {
   }
 
   protected function compileSearchQuery($keywords) {
+    $search = [];
     // if (!empty(trim($keywords))) {
     //   $keywords = mb_strtolower($keywords);
     //   $keywords = preg_replace('/[^[:alnum:]_-]/u', ' ', $keywords);
@@ -242,7 +243,7 @@ abstract class CustomSearchBase extends SearchPluginBase {
 
 
   protected function getParameter($name, $default = null) {
-    return isset($this->searchParameters[$name]) ? $this->searchParameters[$name] : $default;
+    return $this->searchParameters[$name] ?? $default;
   }
 
   protected function processSnippet(array $hit) {
