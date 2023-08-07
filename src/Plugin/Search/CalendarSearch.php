@@ -14,8 +14,8 @@ use Drupal\Core\Url;
  * )
  */
 class CalendarSearch extends CustomSearchBase {
-  const NODE_TYPE = 'procal_entry';
-  const VOCABULARY = 'procal_groups';
+  public const NODE_TYPE = 'procal_entry';
+  public const VOCABULARY = 'procal_groups';
 
   protected function compileSearchQuery($keywords) {
     $search = parent::compileSearchQuery($keywords);

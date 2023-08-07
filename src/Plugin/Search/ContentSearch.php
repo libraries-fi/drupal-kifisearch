@@ -30,9 +30,9 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class ContentSearch extends CustomSearchBase implements SearchIndexingInterface {
   // Should match the ID defined in the @SearchPlugin annotation.
-  const SEARCH_ID = 'kifisearch';
+  public const SEARCH_ID = 'kifisearch';
 
-  const ALLOWED_NODE_TYPES = [
+  public const ALLOWED_NODE_TYPES = [
     'announcement',
     'buildings',
     'evrecipe',
@@ -79,7 +79,7 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
 
     $prepared = [];
 
-    $bids = array_unique(array_map(function($hit) { return $hit['_source']['bundle']; }, $result['hits']['hits']));
+    $bids = array_unique(array_map(fn($hit) => $hit['_source']['bundle'], $result['hits']['hits']));
     $bundles = $this->entityManager->getStorage('node_type')->loadMultiple($bids);
 
     $cache = $this->loadMatchedEntities($result);

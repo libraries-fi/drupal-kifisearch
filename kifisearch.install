@@ -1,6 +1,7 @@
 <?php
 
 function kifisearch_schema() {
+  $schema = [];
   $schema['kifisearch_index'] = [
     'description' => 'Keeps track of indexed entities',
     'fields' => [
