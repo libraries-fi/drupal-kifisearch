@@ -49,7 +49,7 @@ abstract class CustomSearchBase extends SearchPluginBase {
   public function execute() {
     try {
       if ($this->isSearchExecutable() && $result = $this->findResults()) {
-        pager_default_initialize($result['hits']['total'], self::PAGE_SIZE);
+        \Drupal::service('pager.manager')->createPager($result['hits']['total'], self::PAGE_SIZE, 0)->getCurrentPage();
         return $this->prepareResults($result);
       }
     } catch (BadRequest400Exception $error) {
