@@ -3,6 +3,6 @@ type: module
 package: Kirjastot.fi
 description: "Better search built with Elasticsearch."
 core: 8.x
-core_version_requirement: ^8 || ^9
+core_version_requirement: ">=8"
 configure: entity.search_page.collection
 dependencies: {}
