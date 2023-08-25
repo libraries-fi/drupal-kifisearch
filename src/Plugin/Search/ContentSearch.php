@@ -14,6 +14,7 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\kifisearch\NodeIndexer;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use Drupal\search\Plugin\SearchPluginBase;
+use Ehann\RediSearch\Index;
 use Elasticsearch\Client;
 use Elasticsearch\Common\Exceptions\BadRequest400Exception;
 use Elasticsearch\Common\Exceptions\NoNodesAvailableException;
@@ -44,6 +45,8 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
   protected $database;
   protected $searchSettings;
 
+  protected NodeIndexer $nodeIndexer;
+
   static public function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     return new static(
       $configuration,
@@ -57,8 +60,8 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
     );
   }
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Client $client, Connection $database, Config $search_settings) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_manager, $languages, $client);
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Index $kifi_index, Connection $database, Config $search_settings) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_manager, $languages, $kifi_index);
 
     $this->database = $database;
     $this->searchSettings = $search_settings;
@@ -66,27 +69,27 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
     $batch_size = $this->searchSettings->get('index.cron_limit');
     $node_storage = $entity_manager->getStorage('node');
 
-    $this->nodeIndexer = new NodeIndexer($database, $node_storage, $this->client, self::ALLOWED_NODE_TYPES, $batch_size);
+    $this->nodeIndexer = new NodeIndexer($database, $node_storage, $this->kifi_index, self::ALLOWED_NODE_TYPES, $batch_size);
   }
 
   /**
    * @param $result Elasticsearch response.
    */
   protected function prepareResults(array $result) {
-    $total = $result['hits']['total'];
-    $time = $result['took'];
-    $rows = $result['hits']['hits'];
+
+    $total = $result['total'];
+    $rows = $result['hits'];
 
     $prepared = [];
 
-    $bids = array_unique(array_map(fn($hit) => $hit['_source']['bundle'], $result['hits']['hits']));
+    $bids = array_unique(array_map(fn($hit) => $hit['bundle'], $result['hits']));
     $bundles = $this->entityManager->getStorage('node_type')->loadMultiple($bids);
 
     $cache = $this->loadMatchedEntities($result);
 
-    foreach ($result['hits']['hits'] as $hit) {
-      $entity_type = $hit['_source']['entity_type'];
-      $entity_id = $hit['_source']['id'];
+    foreach ($result['hits'] as $hit) {
+      $entity_type = $hit['entity_type'];
+      $entity_id = $hit['entity_id'];
 
       if (!isset($cache[$entity_type][$entity_id])) {
         user_error(sprintf('Stale search entry: %s #%d does not exist', $entity_type, $entity_id));
@@ -96,12 +99,12 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
       $entity = $cache[$entity_type][$entity_id];
 
       $build = [
-        'link' => $entity->url('canonical', ['absolute' => TRUE, 'language' => $entity->language()]),
+        'link' => $entity->toUrl('canonical', ['absolute' => TRUE, 'language' => $entity->language()])->toString(),
         'entity' => $entity,
         'type' => $entity->bundle(),
         'title' => $entity->label(),
-        'score' => $hit['_score'],
-        'date' => strtotime($hit['_source']['created']),
+        'score' => $hit['score'],
+        'date' => $hit['created'],
         'langcode' => $entity->language()->getId(),
         'extra' => [],
         'snippet' => $this->processSnippet($hit),

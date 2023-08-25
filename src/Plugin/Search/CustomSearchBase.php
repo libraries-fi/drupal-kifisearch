@@ -7,6 +7,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\search\Plugin\SearchPluginBase;
+use Ehann\RediSearch\Index;
 use Elasticsearch\Client;
 use Elasticsearch\Common\Exceptions\BadRequest400Exception;
 use Elasticsearch\Common\Exceptions\NoNodesAvailableException;
@@ -15,7 +16,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 abstract class CustomSearchBase extends SearchPluginBase {
   protected $entityManager;
   protected $languageManager;
-  protected $client;
+  protected Index $kifi_index;
 
   public const PAGE_SIZE = 10;
 
@@ -30,12 +31,12 @@ abstract class CustomSearchBase extends SearchPluginBase {
     );
   }
 
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Client $client) {
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_manager, LanguageManagerInterface $languages, Index $kifi_index) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
 
     $this->entityManager = $entity_manager;
     $this->languageManager = $languages;
-    $this->client = $client;
+    $this->kifi_index = $kifi_index;
   }
 
   public function suggestedTitle() {
@@ -255,7 +256,7 @@ abstract class CustomSearchBase extends SearchPluginBase {
       ];
     } else {
       $snippet = [
-        '#markup' => Unicode::truncate($hit['_source']['body'], 200, TRUE, TRUE)
+        '#markup' => Unicode::truncate($hit['body'], 200, TRUE, TRUE)
       ];
     }
     return $snippet;
@@ -267,14 +268,26 @@ abstract class CustomSearchBase extends SearchPluginBase {
     $skip = $this->getParameter('page', 0) * self::PAGE_SIZE;
 
     // print json_encode($query);
+    $search_result = $this->kifi_index
+      ->withScores()
+      ->language(\Ehann\RediSearch\Language::FINNISH)
+      ->summarize(['title'], 5, 200)
+      ->highlight(['title','body'])
+      ->sortBy('year', 'DESC')
+      ->search($this->keywords, true);
+    $result = [
+      'hits' => $search_result->getDocuments(),
+      'total' => $search_result->getCount()
+    ];
 
+    /*
     $result = $this->client->search([
       'index' => 'kirjastot_fi',
       'type' => 'content',
       'body' => $query,
       'from' => $skip,
       'size' => self::PAGE_SIZE,
-    ]);
+    ]);*/
 
     return $result;
   }
@@ -283,9 +296,9 @@ abstract class CustomSearchBase extends SearchPluginBase {
     $cacheable_entities = [];
     $cache = [];
 
-    foreach ($result['hits']['hits'] as $entry) {
-      $entity_type = $entry['_source']['entity_type'];
-      $cacheable_entities[$entity_type][] = $entry['_source']['id'];
+    foreach ($result['hits'] as $entry) {
+      $entity_type = $entry['entity_type'];
+      $cacheable_entities[$entity_type][] = $entry['entity_id'];
     }
 
     foreach ($cacheable_entities as $type => $ids) {

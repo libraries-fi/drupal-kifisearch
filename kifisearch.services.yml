@@ -2,5 +2,9 @@ services:
   kifisearch.client_factory:
     class: 'Drupal\kifisearch\ClientFactory'
   kifisearch.client:
-    class: 'ElasticSearch\Client'
+    class: 'Ehann\RediSearch\Index'
     factory: 'kifisearch.client_factory:create'
+    arguments: ['@logger.channel.kifisearch']
+  logger.channel.kifisearch:
+    parent: logger.channel_base
+    arguments: ['kifisearch']
