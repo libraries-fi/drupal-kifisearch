@@ -1,7 +1,7 @@
 name: Advanced Search
 type: module
 package: Kirjastot.fi
-description: "Better search built with Elasticsearch."
+description: "Better search built with RediSearch."
 core: 8.x
 core_version_requirement: ">=8"
 configure: entity.search_page.collection

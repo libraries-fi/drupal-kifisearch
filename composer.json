@@ -1,10 +1,10 @@
 {
   "name": "libraries-fi/kifisearch",
-  "description": "Better search built with Elasticsearch.",
+  "description": "Better search built with RediSearch.",
   "type": "drupal-module",
   "license": "GPL-2.0+",
   "require": {
     "html2text/html2text": "^4.0",
-    "elasticsearch/elasticsearch": "^7.0"
+    "ethanhann/redisearch-php": "^2.0"
   }
 }
