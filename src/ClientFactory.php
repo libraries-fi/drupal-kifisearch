@@ -2,6 +2,7 @@
 
 namespace Drupal\kifisearch;
 
+use Drupal\kifisearch\Query\KifiIndex;
 use Ehann\RediSearch\Fields\NumericField;
 use Elasticsearch\ClientBuilder;
 use Ehann\RedisRaw\PhpRedisAdapter;
@@ -12,7 +13,7 @@ class ClientFactory {
   public function create(LoggerInterface $logger) {
     $redis = (new PhpRedisAdapter())->connect('127.0.0.1', 6379);
     $redis->setLogger($logger);
-    $kifiIndex = new Index($redis, 'kirjastot_fi');
+    $kifiIndex = new KifiIndex($redis, 'kirjastot_fi');
 
     // Create the schema (this needs to be done whether the index actually exists or not):
     $kifiIndex
@@ -22,8 +23,14 @@ class ClientFactory {
       ->addTagField('langcode')
       ->addTextField(name: 'title', sortable: true)
       ->addTextField('body')
-      ->addNumericField('terms')
+
+
+      // Terms are for storing the numeric id's of tags
+      // While tags will store the string name of terms
+      // and free-form tags.
+      ->addTagField('terms')
       ->addTagField('tags')
+      
       ->addNumericField('created', true)
       ->addNumericField('changed', true)
       
@@ -35,6 +42,7 @@ class ClientFactory {
       ->addNumericField('procal_starts', true)
       ->addNumericField('procal_ends', true)
       ->addNumericField('procal_expires', true)
+      ->addTextField('procal_city')
       ->addTextField('procal_location')
       ->addTextField('procal_organisation')
       ->addNumericField('procal_streamable')
@@ -42,7 +50,7 @@ class ClientFactory {
       ->addTextField('evrecipe_organizer')
 
       // question
-      ->addNumericField('score', true)
+      ->addNumericField('asklib_score', true)
 
       // For sorting
       ->addNumericField('year', true);

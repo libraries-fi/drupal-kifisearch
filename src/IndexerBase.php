@@ -56,8 +56,7 @@ abstract class IndexerBase implements SearchIndexingInterface {
       $document['tags'] = implode(',', $document['tags']);
     }
     if (!empty($document['terms'])) {
-      // Get the first value and set it to terms
-      $document['terms'] = $document['terms'][0];
+      $document['terms'] = implode(',', $document['terms']);
     }
 
     // Generic entity fields
@@ -81,7 +80,7 @@ abstract class IndexerBase implements SearchIndexingInterface {
     $kifiDocument->changed->setValue($document['changed']);
     $kifiDocument->year->setValue($document['year']);
 
-    // Comment spesific fields
+    // Comment specific fields
     $kifiDocument->commented_entity_type->setValue($document['commented_entity_type']);
     $kifiDocument->commented_entity_id->setValue($document['commented_entity_id']);
     $kifiDocument->comment_field->setValue($document['comment_field']);
@@ -94,18 +93,28 @@ abstract class IndexerBase implements SearchIndexingInterface {
     $kifiDocument->procal_organisation->setValue($document['procal_organisation']);
     $kifiDocument->procal_streamable->setValue($document['procal_streamable']);
 
+    // Question specific
+    $kifiDocument->asklib_score->setValue($document['asklib_score']);
+
+
     // RediSearch specific language parameter
-    $language = 'finnish';
+    // TODO: Language parameter is not supported in RediSearch 1.1.2 (version
+    // currently in use). However 2.0.12 does support language, but in our
+    // use case, we do not need the extended language support, since we
+    // are mostly using Latin alphabet based languages (fi, sv, en).
+    /*
+    $language = \Ehann\RediSearch\Language::FINNISH;
 
     if ($document['langcode'] === 'sv') {
-      $language = 'swedish';
+      $language = \Ehann\RediSearch\Language::SWEDISH;
     }
 
     if ($document['langcode'] === 'en') {
-      $language = 'english';
+      $language = \Ehann\RediSearch\Language::ENGLISH;
     }
 
-    $kifiDocument->setLanguage($$language);
+    $kifiDocument->setLanguage($language);
+    */
 
     // evrecipe
     $kifiDocument->evrecipe_organizer->setValue($document['evrecipe_organizer']);

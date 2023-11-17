@@ -5,6 +5,7 @@ namespace Drupal\kifisearch;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
+use Drupal\devel\Twig\Extension\Debug;
 use Drupal\node\NodeInterface;
 use Drupal\kifisearch\Plugin\Search\ContentSearch;
 use Drupal\search\Plugin\SearchIndexingInterface;
@@ -95,7 +96,7 @@ class NodeIndexer extends IndexerBase {
             }
 
             if ($node->hasField('field_evrecipe_implementor')) {
-              $document['fields']['evrecipe']['organiser'] = $node->get('field_evrecipe_implementor')->value;
+              $document['evrecipe_organiser'] = $node->get('field_evrecipe_implementor')->value;
             }
 
             break;
@@ -110,30 +111,30 @@ class NodeIndexer extends IndexerBase {
 
           case 'procal_entry':
             $document += $this->extractTermsFromEntity($node, ['field_groups']);
-
+            
             if ($node->hasField('field_procal_starts')) {
-              $document['fields']['procal_entry']['starts'] = $node->get('field_procal_starts')->value;
-              $document['fields']['procal_entry']['ends'] = $node->get('field_procal_ends')->value;
+              $document['procal_starts'] = $node->get('field_procal_starts')->value;
+              $document['procal_ends'] = $node->get('field_procal_ends')->value;
             }
 
             if ($node->hasField('field_procal_expires')) {
-              $document['fields']['procal_entry']['expires'] = $node->get('field_procal_expires')->value;
+              $document['procal_expires'] = $node->get('field_procal_expires')->value;
             }
 
             if ($node->hasField('field_procal_city')) {
-              $document['fields']['procal_entry']['city'] = $node->get('field_procal_city')->value;
+              $document['procal_city'] = $node->get('field_procal_city')->value;
             }
 
             if ($node->hasField('field_procal_location')) {
-              $document['fields']['procal_entry']['location'] = $node->get('field_procal_location')->value;
+              $document['procal_location'] = $node->get('field_procal_location')->value;
             }
 
             if ($node->hasField('field_procal_organisation')) {
-              $document['fields']['procal_entry']['organisation'] = $node->get('field_procal_organisation')->value;
+              $document['procal_organisation'] = $node->get('field_procal_organisation')->value;
             }
 
             if ($node->hasField('field_procal_stream')) {
-              $document['fields']['procal_entry']['streamable'] = (bool)$node->get('field_procal_stream')->value;
+              $document['procal_streamable'] = (bool)$node->get('field_procal_stream')->value;
             }
 
             break;

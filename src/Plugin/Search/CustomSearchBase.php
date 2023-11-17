@@ -268,13 +268,33 @@ abstract class CustomSearchBase extends SearchPluginBase {
     $skip = $this->getParameter('page', 0) * self::PAGE_SIZE;
 
     // print json_encode($query);
-    $search_result = $this->kifi_index
-      ->withScores()
-      ->language(\Ehann\RediSearch\Language::FINNISH)
-      ->summarize(['title'], 5, 200)
-      ->highlight(['title','body'])
-      ->sortBy('year', 'DESC')
-      ->search($this->keywords, true);
+    $search_query = $this->kifi_index
+    ->withScores()
+    ->summarize(['title'], 5, 200)
+    ->highlight(['title','body'])
+    
+    // ->numericFilter('created', 34, 5324)
+    ->sortBy('year', 'DESC');
+
+    // Apply additional filters
+
+    // Check if 'anylang' parameter isn't set or is falsy.
+    if (!$parameters['anylang'])
+    {
+      $language_code = \Drupal::languageManager()->getCurrentLanguage()->getId();
+      $search_query->tagFilter('langcode', [$language_code]);
+    }
+
+    // Filter search only from title
+    if ($parameters['ot'] == 1)
+    {
+      // NOTE: Should we allow searching for multiple words? This can be done
+      // in separating the search words with | symbol.
+      $this->keywords = '@title:(' . $this->keywords . ')';
+    }
+
+
+    $search_result = $search_query->search($this->keywords, true);
     $result = [
       'hits' => $search_result->getDocuments(),
       'total' => $search_result->getCount()
