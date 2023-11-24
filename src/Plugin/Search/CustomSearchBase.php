@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\search\Plugin\SearchPluginBase;
 use Ehann\RediSearch\Index;
+use Ehann\RediSearch\Query\BuilderInterface;
 use Elasticsearch\Client;
 use Elasticsearch\Common\Exceptions\BadRequest400Exception;
 use Elasticsearch\Common\Exceptions\NoNodesAvailableException;
@@ -50,7 +51,7 @@ abstract class CustomSearchBase extends SearchPluginBase {
   public function execute() {
     try {
       if ($this->isSearchExecutable() && $result = $this->findResults()) {
-        \Drupal::service('pager.manager')->createPager($result['hits']['total'], self::PAGE_SIZE, 0)->getCurrentPage();
+        \Drupal::service('pager.manager')->createPager($result['total'], self::PAGE_SIZE, 0)->getCurrentPage();
         return $this->prepareResults($result);
       }
     } catch (BadRequest400Exception $error) {
@@ -158,88 +159,33 @@ abstract class CustomSearchBase extends SearchPluginBase {
     return $query;
   }
 
-  protected function compileSearchQuery($keywords) {
-    $search = [];
-    // if (!empty(trim($keywords))) {
-    //   $keywords = mb_strtolower($keywords);
-    //   $keywords = preg_replace('/[^[:alnum:]_-]/u', ' ', $keywords);
-    //   $words = preg_split('/\s+/', $keywords);
-    //   $words = array_map(function($word) { return $word . '*'; }, $words);
-    //   $query_string = implode(' OR ', array_merge([$keywords], $words));
-    //
-    //   if ($query_string) {
-    //     $query['bool']['must'][] = [
-    //       'query_string' => [
-    //         'fields' => $this->getParameter('ot') ? ['title'] : ['title', 'body'],
-    //         'query' => $query_string
-    //       ]
-    //     ];
-    //   }
-    // }
+  protected function compileSearchQuery(BuilderInterface &$search_query, $keywords) {
 
-    if (!empty(trim($keywords))) {
-      if ($this->getParameter('ot', 'no') == 'no') {
-        $search['query']['bool']['must'][] = [
-          'multi_match' => [
-            'query' => $keywords,
-            'fields' => [
-              'body',
-              'title',
-              'tags',
-
-              // Some custom fields to do searching from.
-              // Have to list them one-by-one because ES will fail with fields of wrong type.
-              'fields.evrecipe.organiser',
-              'fields.procal_entry.city',
-              'fields.procal_entry.location',
-              'fields.procal_entry.organisation',
-            ],
-          ]
-        ];
-
-        $search['highlight'] = [
-          'fields' => ['body' => (object)[]],
-          'pre_tags' => ['<strong>'],
-          'post_tags' => ['</strong>'],
-        ];
-      } else {
-        // Perform simple sanity check because 'query_string' query will crash easily.
-        $keywords = mb_strtolower($keywords);
-        $keywords = preg_replace('/[^\w\s]/u', '', $keywords);
-
-        // Using 'query_string' query because the Finnish stemmer cannot process compound words.
-        $search['query']['bool']['must'][] = [
-          'query_string' => [
-            'fields' => ['title'],
-            'query' => "*{$keywords}*",
-          ]
-        ];
-      }
+    if ($this->getParameter('anylang', 'no') == 'no')
+    {
+      $language_code = \Drupal::languageManager()->getCurrentLanguage()->getId();
+      $search_query->tagFilter('langcode', [$language_code]);
     }
 
-    if ($this->getParameter('anylang', 'no') == 'no') {
-      $search['query']['bool']['filter'][] = ['term' => [
-        'langcode' => $this->languageManager->getCurrentLanguage()->getId()
-      ]];
+    // Filter search only from title
+    if ($this->getParameter('ot', 'no') !== 'no')
+    {
+      // NOTE: Should we allow searching for multiple words? This can be done
+      // in separating the search words with | symbol.
+      $this->keywords = '@title:(' . $this->keywords . ')';
     }
 
-    if ($from = $this->getParameter('df')) {
-      $search['query']['bool']['filter'][] = ['range' => [
-        'created' => [
-          'gte' => $from
-        ]
-      ]];
+    // Date From
+    if ($from = $this->getParameter('df'))
+    {
+      $search_query->numericFilter('created', strtotime($from));
     }
 
-    if ($until = $this->getParameter('du')) {
-      $search['query']['bool']['filter'][] = ['range' => [
-        'created' => [
-          'lte' => $until
-        ]
-      ]];
+    // Date until
+    if ($until = $this->getParameter('du'))
+    {
+      $search_query->numericFilter('created', 0, strtotime($until));
     }
-
-    return $search;
   }
 
 
@@ -248,12 +194,25 @@ abstract class CustomSearchBase extends SearchPluginBase {
   }
 
   protected function processSnippet(array $hit) {
-    if (!empty($hit['highlight'])) {
-      $matches = reset($hit['highlight']);
+
+    // Check if $hit['body'] contains any strong tags.
+    if (strpos($hit['body'], '<strong') !== FALSE) {
 
       $snippet = [
-        '#markup' => implode(' ... ', $matches)
+        '#markup' => Unicode::truncate($hit['body'], 200, TRUE, TRUE)
       ];
+
+      // In rare cases, the truncate might leave '<strong...' or '</strong...'
+      // at the end of the snippet. Remove them altogether.
+      $snippet['#markup'] = preg_replace('/<\/?strong[^>]*$/', '', $snippet['#markup']);
+
+      $last_open_strong = strrpos($snippet['#markup'], '<strong>');
+      $last_close_strong = strrpos($snippet['#markup'], '</strong>');
+      if ($last_close_strong < $last_open_strong || $last_open_strong === FALSE) {
+        // The last strong tag is not closed. Close it.
+        $snippet['#markup'] .= '</strong>';
+      }
+
     } else {
       $snippet = [
         '#markup' => Unicode::truncate($hit['body'], 200, TRUE, TRUE)
@@ -263,51 +222,29 @@ abstract class CustomSearchBase extends SearchPluginBase {
   }
 
   protected function findResults() {
-    $query = $this->compileSearchQuery($this->keywords);
+
     $parameters = $this->getParameters();
     $skip = $this->getParameter('page', 0) * self::PAGE_SIZE;
 
     // print json_encode($query);
     $search_query = $this->kifi_index
     ->withScores()
-    ->summarize(['title'], 5, 200)
-    ->highlight(['title','body'])
-    
-    // ->numericFilter('created', 34, 5324)
-    ->sortBy('year', 'DESC');
+    ->limit($skip, self::PAGE_SIZE)
+    // Should we use RediSearch's own summarizer or Drupal's?
+    // ->summarize(['title'], 5, 200)
+    ->highlight(['body']);
 
-    // Apply additional filters
-
-    // Check if 'anylang' parameter isn't set or is falsy.
-    if (!$parameters['anylang'])
-    {
-      $language_code = \Drupal::languageManager()->getCurrentLanguage()->getId();
-      $search_query->tagFilter('langcode', [$language_code]);
-    }
-
-    // Filter search only from title
-    if ($parameters['ot'] == 1)
-    {
-      // NOTE: Should we allow searching for multiple words? This can be done
-      // in separating the search words with | symbol.
-      $this->keywords = '@title:(' . $this->keywords . ')';
-    }
-
+    // Apply content specific filters
+    $this->compileSearchQuery($search_query, $this->keywords);
 
     $search_result = $search_query->search($this->keywords, true);
     $result = [
       'hits' => $search_result->getDocuments(),
-      'total' => $search_result->getCount()
-    ];
-
-    /*
-    $result = $this->client->search([
-      'index' => 'kirjastot_fi',
-      'type' => 'content',
-      'body' => $query,
+      //'type' => 'content',
+      'total' => $search_result->getCount(),
       'from' => $skip,
       'size' => self::PAGE_SIZE,
-    ]);*/
+    ];
 
     return $result;
   }

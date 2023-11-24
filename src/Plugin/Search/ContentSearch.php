@@ -15,6 +15,7 @@ use Drupal\kifisearch\NodeIndexer;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use Drupal\search\Plugin\SearchPluginBase;
 use Ehann\RediSearch\Index;
+use Ehann\RediSearch\Query\BuilderInterface;
 use Elasticsearch\Client;
 use Elasticsearch\Common\Exceptions\BadRequest400Exception;
 use Elasticsearch\Common\Exceptions\NoNodesAvailableException;
@@ -77,8 +78,6 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
    */
   protected function prepareResults(array $result) {
 
-    $total = $result['total'];
-    $rows = $result['hits'];
 
     $prepared = [];
 
@@ -123,6 +122,12 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
 
     return $prepared;
   }
+
+  protected function compileSearchQuery(BuilderInterface &$search_query, $keywords) {
+    // Use the default ordering for content.
+    $search_query->sortBy('year', 'DESC');
+  }
+
 
   public function indexStatus() {
     $node_status = $this->nodeIndexer->indexStatus();
