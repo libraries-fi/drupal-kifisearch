@@ -124,6 +124,7 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
   }
 
   protected function compileSearchQuery(BuilderInterface &$search_query, $keywords) {
+    parent::compileSearchQuery($search_query, $keywords);
     // Use the default ordering for content.
     $search_query->sortBy('year', 'DESC');
   }
