@@ -112,9 +112,12 @@ class NodeIndexer extends IndexerBase {
           case 'procal_entry':
             $document += $this->extractTermsFromEntity($node, ['field_groups']);
             
-            if ($node->hasField('field_procal_starts')) {
-              $document['procal_starts'] = $node->get('field_procal_starts')->value;
-              $document['procal_ends'] = $node->get('field_procal_ends')->value;
+            if ($node->hasField('field_procal_starts') && !empty($node->get('field_procal_starts')->value)) {
+              $document['procal_starts'] = strtotime($node->get('field_procal_starts')->value);
+            }
+
+            if ($node->hasField('field_procal_ends') && !empty($node->get('field_procal_ends')->value)) {
+              $document['procal_ends'] = strtotime($node->get('field_procal_ends')->value);
             }
 
             if ($node->hasField('field_procal_expires') && !empty($node->get('field_procal_expires')->value)) {
