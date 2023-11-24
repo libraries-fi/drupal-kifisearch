@@ -117,8 +117,8 @@ class NodeIndexer extends IndexerBase {
               $document['procal_ends'] = $node->get('field_procal_ends')->value;
             }
 
-            if ($node->hasField('field_procal_expires')) {
-              $document['procal_expires'] = $node->get('field_procal_expires')->value;
+            if ($node->hasField('field_procal_expires') && !empty($node->get('field_procal_expires')->value)) {
+              $document['procal_expires'] = strtotime($node->get('field_procal_expires')->value);
             }
 
             if ($node->hasField('field_procal_city')) {
@@ -134,7 +134,7 @@ class NodeIndexer extends IndexerBase {
             }
 
             if ($node->hasField('field_procal_stream')) {
-              $document['procal_streamable'] = (bool)$node->get('field_procal_stream')->value;
+              $document['procal_streamable'] = (int)$node->get('field_procal_stream')->value;
             }
 
             break;
