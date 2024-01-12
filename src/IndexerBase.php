@@ -48,9 +48,27 @@ abstract class IndexerBase implements SearchIndexingInterface {
     // Main search plugin will handle this.
   }
 
+  // Only escape the dash character with \\-
+  protected function escapeAndTrimField(string $field):string {
+    return preg_replace('/-/', '\\-', trim($field));
+  }
+
   protected function prepareDocument(string $docid, array $document):DocumentInterface
   {
     $kifiDocument = $this->kifi_index->makeDocument();
+
+    // Clean "free text" documents fields in the $document array
+    $fields_to_clean = [
+      'terms', 'tags', 'title', 'body', 'comment_field', 'procal_city', 'procal_location',
+      'procal_organisation', 'evrecipe_organizer'
+    ];
+    // Only fields with content.
+    $fields_to_clean = array_filter($fields_to_clean, function($field) use ($document) {
+      return isset($document[$field]) && is_string($document[$field]) && !empty($document[$field]);
+    });
+    foreach ($fields_to_clean as $field) {
+      $document[$field] = $this->escapeAndTrimField($document[$field]);
+    }
 
     if (!empty($document['tags'])) {
       $document['tags'] = implode(',', $document['tags']);
@@ -66,8 +84,6 @@ abstract class IndexerBase implements SearchIndexingInterface {
     $kifiDocument->langcode->setValue($document['langcode']);
     $kifiDocument->title->setValue($document['title']);
     $kifiDocument->body->setValue($document['body']);
-    $kifiDocument->terms->setValue($document['terms']);
-    $kifiDocument->tags->setValue($document['tags']);
 
     // Created and changed are in the format of '1999-09-09T00:00:00'
     // Convert them into unix time
@@ -80,44 +96,27 @@ abstract class IndexerBase implements SearchIndexingInterface {
     $kifiDocument->changed->setValue($document['changed']);
     $kifiDocument->year->setValue($document['year']);
 
-    // Comment specific fields
-    $kifiDocument->commented_entity_type->setValue($document['commented_entity_type']);
-    $kifiDocument->commented_entity_id->setValue($document['commented_entity_id']);
-    $kifiDocument->comment_field->setValue($document['comment_field']);
+    // Optional fields
+    $optional_fields = [
+      // Common fields
+      'terms', 'tags',
+      // Comment specific fields
+      'commented_entity_type', 'commented_entity_id', 'comment_field',
+      // Procal specific fields
+      'procal_starts', 'procal_ends', 'procal_expires', 'procal_city', 'procal_location',
+      'procal_organisation', 'procal_streamable',
+      // Question specific
+      'asklib_score',
+      // evrecipe
+      'evrecipe_organizer',
+    ];
 
-    // Procal specific fields
-    $kifiDocument->procal_starts->setValue($document['procal_starts']);
-    $kifiDocument->procal_ends->setValue($document['procal_ends']);
-    $kifiDocument->procal_expires->setValue($document['procal_expires']);
-    $kifiDocument->procal_location->setValue($document['procal_location']);
-    $kifiDocument->procal_organisation->setValue($document['procal_organisation']);
-    $kifiDocument->procal_streamable->setValue($document['procal_streamable']);
-
-    // Question specific
-    $kifiDocument->asklib_score->setValue($document['asklib_score']);
-
-
-    // RediSearch specific language parameter
-    // TODO: Language parameter is not supported in RediSearch 1.1.2 (version
-    // currently in use). However 2.0.12 does support language, but in our
-    // use case, we do not need the extended language support, since we
-    // are mostly using Latin alphabet based languages (fi, sv, en).
-    /*
-    $language = \Ehann\RediSearch\Language::FINNISH;
-
-    if ($document['langcode'] === 'sv') {
-      $language = \Ehann\RediSearch\Language::SWEDISH;
+    // Loop check that the fields is and set it to the kifiDocument
+    foreach ($optional_fields as $field) {
+      if (isset($document[$field])) {
+        $kifiDocument->{$field}->setValue($document[$field]);
+      }
     }
-
-    if ($document['langcode'] === 'en') {
-      $language = \Ehann\RediSearch\Language::ENGLISH;
-    }
-
-    $kifiDocument->setLanguage($language);
-    */
-
-    // evrecipe
-    $kifiDocument->evrecipe_organizer->setValue($document['evrecipe_organizer']);
     
     return $kifiDocument;
   }

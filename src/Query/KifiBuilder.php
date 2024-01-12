@@ -18,6 +18,9 @@ class KifiBuilder extends QueryBuilder
     // Override Builder:makeSearchCommandArguments
     public function makeSearchCommandArguments(string $query): array
     {
+        // Escape dash characters in query
+        $query = str_replace('-', '\\-', $query);
+
         $queryParts = array_merge([$query], $this->tagFilters, $this->numericFilters, $this->geoFilters);
         // This line here is the the reason for KifiBuilder and KifiIndex.
         // The extra quotes '', that Builder adds, is not compatible with
