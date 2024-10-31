@@ -6,6 +6,7 @@ use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
+use Drupal\kifisearch\Query\KifiBuilderInterface;
 use Drupal\search\Plugin\SearchPluginBase;
 use Ehann\RediSearch\Index;
 use Ehann\RediSearch\Query\BuilderInterface;
@@ -154,7 +155,14 @@ abstract class CustomSearchBase extends SearchPluginBase {
     return $query;
   }
 
-  protected function compileSearchQuery(BuilderInterface &$search_query, $keywords) {
+  protected function compileSearchQuery(KifiBuilderInterface &$search_query, $keywords) {
+
+    $escaped_keywords = preg_replace_callback('/[^A-Za-z0-9 ]/u', function ($matches) {
+            return '\\' . $matches[0];
+    }, $keywords);
+
+    // Always search also from tags (NOTE: This is different than tag filtering)
+    $this->keywords = '(' . $this->keywords . ' | @tags:{' . $escaped_keywords . '})';
 
     if ($this->getParameter('anylang', 'no') == 'no')
     {
@@ -190,12 +198,11 @@ abstract class CustomSearchBase extends SearchPluginBase {
 
   protected function processSnippet(array $hit) {
 
-    // Check if $hit['body'] contains any strong tags.
-    if (strpos($hit['body'], '<strong') !== FALSE) {
-
       $snippet = [
         '#markup' => Unicode::truncate($hit['body'], 200, TRUE, TRUE)
       ];
+    // Check if $snippet['#markup'] contains any strong tags.
+    if (strpos($snippet['#markup'], '<strong') !== FALSE) {
 
       // In rare cases, the truncate might leave '<strong...' or '</strong...'
       // at the end of the snippet. Remove them altogether.
@@ -208,11 +215,10 @@ abstract class CustomSearchBase extends SearchPluginBase {
         $snippet['#markup'] .= '</strong>';
       }
 
-    } else {
-      $snippet = [
-        '#markup' => Unicode::truncate($hit['body'], 200, TRUE, TRUE)
-      ];
     }
+
+    # Remove backslash front of -dash character only.
+    $snippet['#markup'] = preg_replace('/\\\\-/', '-', $snippet['#markup']);
     return $snippet;
   }
 

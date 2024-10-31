@@ -12,6 +12,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\kifisearch\NodeIndexer;
+use Drupal\kifisearch\Query\KifiBuilderInterface;
 use Drupal\search\Plugin\SearchIndexingInterface;
 use Drupal\search\Plugin\SearchPluginBase;
 use Ehann\RediSearch\Index;
@@ -119,10 +120,13 @@ class ContentSearch extends CustomSearchBase implements SearchIndexingInterface 
     return $prepared;
   }
 
-  protected function compileSearchQuery(BuilderInterface &$search_query, $keywords) {
+  protected function compileSearchQuery(KifiBuilderInterface &$search_query, $keywords) {
     parent::compileSearchQuery($search_query, $keywords);
+
+    $search_query->inverseSimpleTagFilter('entity_type', 'asklib_question');
+    
     // Use the default ordering for content.
-    // $search_query->sortBy('year', 'DESC');
+    $search_query->sortBy('year', 'DESC');
   }
 
 

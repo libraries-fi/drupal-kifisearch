@@ -4,8 +4,9 @@ namespace Drupal\kifisearch\Query;
 
 use Ehann\RediSearch\RediSearchRedisClient;
 use Ehann\RediSearch\Query\Builder as QueryBuilder;
+use Ehann\RediSearch\Query\BuilderInterface;
 
-class KifiBuilder extends QueryBuilder
+class KifiBuilder extends QueryBuilder implements KifiBuilderInterface
 {
     private $indexName;
 
@@ -13,6 +14,12 @@ class KifiBuilder extends QueryBuilder
     {
         $this->redis = $redis;
         $this->indexName = $indexName;
+    }
+
+    public function inverseSimpleTagFilter(string $fieldName, string $value): KifiBuilderInterface
+    {
+        $this->tagFilters[] = "-@$fieldName:{{$value}}";
+        return $this;
     }
 
     // Override Builder:makeSearchCommandArguments
