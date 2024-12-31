@@ -157,7 +157,8 @@ abstract class CustomSearchBase extends SearchPluginBase {
 
   protected function compileSearchQuery(KifiBuilderInterface &$search_query, $keywords) {
 
-    $escaped_keywords = preg_replace_callback('/[^A-Za-z0-9 ]/u', function ($matches) {
+    // Dash needs to be also escaped, but that is done in later in KifiBuilder.
+    $escaped_keywords = preg_replace_callback('/[^A-Za-z0-9 -]/u', function ($matches) {
             return '\\' . $matches[0];
     }, $keywords);
 
