@@ -7,23 +7,25 @@ use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\search\Plugin\SearchIndexingInterface;
-use ElasticSearch\Client;
+use Ehann\RediSearch\Document\DocumentInterface;
+use Ehann\RediSearch\Index;
 use Html2Text\Html2Text;
 use InvalidArgumentException;
 
 abstract class IndexerBase implements SearchIndexingInterface {
   protected $database;
   protected $storage;
-  protected $elastic;
+  protected Index $kifi_index;
   protected $bundles;
+  protected $batchSize;
 
   abstract public function getTotal();
   abstract public function getRemaining();
 
-  public function __construct(Connection $database, EntityStorageInterface $storage, Client $elastic, array $allowed_bundles, int $batch_size) {
+  public function __construct(Connection $database, EntityStorageInterface $storage, Index $kifi_index, array $allowed_bundles, int $batch_size) {
     $this->database = $database;
     $this->storage = $storage;
-    $this->elastic = $elastic;
+    $this->kifi_index = $kifi_index;
     $this->bundles = $allowed_bundles;
     $this->batchSize = (int)$batch_size;
   }
@@ -43,15 +45,88 @@ abstract class IndexerBase implements SearchIndexingInterface {
     // Main search plugin will handle this.
   }
 
+  // Only escape the dash character with \\-
+  protected function escapeAndTrimField(string $field):string {
+    return preg_replace('/-/', '\\-', trim($field));
+  }
+
+  protected function prepareDocument(string $docid, array $document):DocumentInterface
+  {
+    $kifiDocument = $this->kifi_index->makeDocument();
+
+    // Clean "free text" documents fields in the $document array
+    $fields_to_clean = [
+      'terms', 'tags', 'title', 'body', 'comment_field', 'procal_city', 'procal_location',
+      'procal_organisation', 'evrecipe_organizer'
+    ];
+    // Only fields with content.
+    $fields_to_clean = array_filter($fields_to_clean, function($field) use ($document) {
+      return isset($document[$field]) && is_string($document[$field]) && !empty($document[$field]);
+    });
+    foreach ($fields_to_clean as $field) {
+      $document[$field] = $this->escapeAndTrimField($document[$field]);
+    }
+
+    if (!empty($document['tags'])) {
+      $document['tags'] = implode(',', $document['tags']);
+    } else {
+      $document['tags'] = '';
+    }
+    if (!empty($document['terms'])) {
+      $document['terms'] = implode(',', $document['terms']);
+    } else {
+      $document['terms'] = '';
+    }
+
+    // Generic entity fields
+    $kifiDocument->entity_id->setValue($document['id']);
+    $kifiDocument->entity_type->setValue($document['entity_type']);
+    $kifiDocument->bundle->setValue($document['bundle']);
+    $kifiDocument->langcode->setValue($document['langcode']);
+    $kifiDocument->title->setValue($document['title']);
+    $kifiDocument->body->setValue($document['body']);
+
+    // Created and changed are in the format of '1999-09-09T00:00:00'
+    // Convert them into unix time
+
+    $document['year'] = date('Y', strtotime($document['created']));
+    $document['created'] = strtotime($document['created']);
+    $document['changed'] = strtotime($document['changed']);
+
+    $kifiDocument->created->setValue($document['created']);
+    $kifiDocument->changed->setValue($document['changed']);
+    $kifiDocument->year->setValue($document['year']);
+
+    // Optional fields
+    $optional_fields = [
+      // Common fields
+      'terms', 'tags',
+      // Comment specific fields
+      'commented_entity_type', 'commented_entity_id', 'comment_field',
+      // Procal specific fields
+      'procal_starts', 'procal_ends', 'procal_expires', 'procal_city', 'procal_location',
+      'procal_organisation', 'procal_streamable',
+      // Question specific
+      'asklib_score',
+      // evrecipe
+      'evrecipe_organizer',
+    ];
+
+    // Loop check that the fields is and set it to the kifiDocument
+    foreach ($optional_fields as $field) {
+      if (isset($document[$field])) {
+        $kifiDocument->{$field}->setValue($document[$field]);
+      }
+    }
+    
+    return $kifiDocument;
+  }
+
   public function index(array $document) {
     $docid = sprintf('%s::%d::%s', $document['entity_type'], $document['id'], $document['langcode']);
 
-    $this->elastic->index([
-      'index' => 'kirjastot_fi',
-      'type' => 'content',
-      'id' => $docid,
-      'body' => $document,
-    ]);
+    // dump($docid . ' === ' . $document['title']);
+    $this->kifi_index->add($this->prepareDocument($docid, $document));
 
     $this->database->query('
       INSERT INTO {kifisearch_index} (entity_id, entity_type)
