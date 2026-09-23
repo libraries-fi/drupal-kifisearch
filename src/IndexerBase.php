@@ -52,7 +52,7 @@ abstract class IndexerBase implements SearchIndexingInterface {
 
   protected function prepareDocument(string $docid, array $document):DocumentInterface
   {
-    $kifiDocument = $this->kifi_index->makeDocument();
+    $kifiDocument = $this->kifi_index->makeDocument($docid);
 
     // Clean "free text" documents fields in the $document array
     $fields_to_clean = [

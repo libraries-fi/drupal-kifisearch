@@ -25,7 +25,7 @@ class NodeIndexer extends IndexerBase {
 
     // NOTE: Reindex is NULL when left join is to zero rows.
     $query->condition($query->orConditionGroup()
-      ->condition('search.reindex', NULL, 'IS')
+      ->isNull('search.reindex')
       ->condition('search.reindex', 0, '<>'));
 
     $query->leftJoin('kifisearch_index', 'search', 'search.entity_id = entity.nid AND search.entity_type = :type', [
@@ -156,7 +156,7 @@ class NodeIndexer extends IndexerBase {
 
     // NOTE: Reindex is NULL when left join is to zero rows.
     $query->condition($query->orConditionGroup()
-      ->condition('search.reindex', NULL, 'IS')
+      ->isNull('search.reindex')
       ->condition('search.reindex', 0, '<>'));
 
     $query->leftJoin('kifisearch_index', 'search', 'search.entity_id = entity.nid AND search.entity_type = :type', [
