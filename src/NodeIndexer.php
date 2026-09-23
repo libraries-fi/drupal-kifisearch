@@ -2,13 +2,7 @@
 
 namespace Drupal\kifisearch;
 
-use Drupal\Core\Database\Connection;
-use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Entity\EntityStorageInterface;
-use Drupal\devel\Twig\Extension\Debug;
 use Drupal\node\NodeInterface;
-use Drupal\kifisearch\Plugin\Search\ContentSearch;
-use Drupal\search\Plugin\SearchIndexingInterface;
 
 class NodeIndexer extends IndexerBase {
   public function getTotal() {

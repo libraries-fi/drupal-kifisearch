@@ -2,21 +2,13 @@
 
 namespace Drupal\kifisearch\Plugin\Search;
 
-use DateTime;
-use InvalidArgumentException;
-use Drupal\Component\Utility\Tags;
-use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Database\Connection;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\kifisearch\NodeIndexer;
 use Drupal\kifisearch\Query\KifiBuilderInterface;
 use Drupal\search\Plugin\SearchIndexingInterface;
-use Drupal\search\Plugin\SearchPluginBase;
 use Ehann\RediSearch\Index;
-use Ehann\RediSearch\Query\BuilderInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**

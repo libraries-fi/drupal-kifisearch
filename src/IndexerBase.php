@@ -181,7 +181,7 @@ abstract class IndexerBase implements SearchIndexingInterface {
     return $terms;
   }
 
-  protected function stripHtml($html, array $options = null) {
+  protected function stripHtml($html, ?array $options = null) {
     if (is_null($options)) {
       $options = ['do_links' => 'none'];
     }
