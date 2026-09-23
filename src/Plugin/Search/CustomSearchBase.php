@@ -4,6 +4,7 @@ namespace Drupal\kifisearch\Plugin\Search;
 
 use Drupal\Component\Utility\Unicode;
 
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\kifisearch\Query\KifiBuilderInterface;

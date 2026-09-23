@@ -4,6 +4,7 @@ namespace Drupal\kifisearch\Plugin\Search;
 
 use Drupal\Core\Config\Config;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\kifisearch\NodeIndexer;
 use Drupal\kifisearch\Query\KifiBuilderInterface;
