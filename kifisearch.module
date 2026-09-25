@@ -26,3 +26,21 @@ function kifisearch_theme_suggestions_form_alter(array &$suggestions, array $var
     }
   }
 }
+
+// Add noindex to search result pages.
+function kifisearch_page_attachments(array &$attachments) {
+  $route_name = \Drupal::routeMatch()->getRouteName();
+
+  if ($route_name && strpos($route_name, 'search.view_') === 0) {
+    $attachments['#attached']['html_head'][] = [
+      [
+        '#tag' => 'meta',
+        '#attributes' => [
+          'name' => 'robots',
+          'content' => 'noindex, follow',
+        ],
+      ],
+      'kifisearch_search_results_robots',
+    ];
+  }
+}
